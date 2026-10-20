@@ -22,7 +22,8 @@
 | Oct 24: **first full testnet run** | **open**: needs a testnet node endpoint and ~0.006 TAZ | runner: `NETWORK=testnet scripts/demo.sh`, `docs/testnet.md` |
 | Oct 25: QR checkout; altered, wrong-merchant, expired, reused invoices fail | **passed** (regtest; phone scan not tested on a device) | e2e; `docs/video.md` |
 | Oct 26: solver killed mid-payment, merchant down, status page, docs | **passed** (regtest) | e2e; `docs/design.md`, `/status` |
-| Oct 27–28: record, submit | **open**: user | `docs/video.md` |
+| Oct 27: record | **regtest cut recorded** (`scripts/record.sh`, 2:00); testnet cut follows the testnet run | `docs/video.md` |
+| Oct 28: submit | **open**: submission is made from the user's account | — |
 
 P1 built: QR checkout, Ironwood cooperative close, second agent in the demo, status page. P2 untouched, as planned.
 

@@ -298,9 +298,22 @@ location=u+'/pay?ref='+encodeURIComponent(location.origin+location.pathname)}}
 /// The point-of-sale page: a fresh invoice for `amount` and a QR code of its URL. The QR
 /// carries only the invoice reference; the payer fetches and verifies the signed invoice.
 async fn checkout(State(ctx): State<Arc<Ctx>>, Query(q): Query<HashMap<String, String>>) -> ApiResult<Html<String>> {
-    let amount: u64 = q.get("amount").and_then(|a| a.parse().ok()).unwrap_or(ctx.cfg.price);
-    let item = q.get("item").cloned().unwrap_or_else(|| "order".into());
-    let inv = issue(&ctx, amount, &format!("checkout:{item}"))?;
+    // `?invoice=<id>` shows an existing invoice (a POS screen that reloads); otherwise a
+    // new one is issued for `amount` and `item`.
+    let inv = match q.get("invoice") {
+        Some(id) => ctx
+            .store
+            .read(|c| store::invoice_get(c, id))?
+            .ok_or_else(|| err(StatusCode::NOT_FOUND, "unknown invoice"))?
+            .invoice,
+        None => {
+            let amount: u64 = q.get("amount").and_then(|a| a.parse().ok()).unwrap_or(ctx.cfg.price);
+            let item = q.get("item").cloned().unwrap_or_else(|| "order".into());
+            issue(&ctx, amount, &format!("checkout:{item}"))?
+        }
+    };
+    let amount = inv.body.amount;
+    let item = inv.body.resource.trim_start_matches("checkout:").to_string();
     let url = format!("{}/invoices/{}", ctx.cfg.base_url, inv.body.id);
     let svg = qrcode::QrCode::new(url.as_bytes())
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -436,6 +449,6 @@ async fn status_html(State(ctx): State<Arc<Ctx>>) -> ApiResult<Html<String>> {
             esc(i["status"].as_str().unwrap_or("")),
         );
     }
-    b += "</table></div><script>setTimeout(()=>location.reload(),4000)</script>";
+    b += "</table></div><script>if(!location.search.includes('still'))setTimeout(()=>location.reload(),4000)</script>";
     Ok(Html(page(&ctx.cfg.name, &b)))
 }

@@ -552,6 +552,6 @@ async fn status_html(State(ctx): State<Arc<Ctx>>) -> ApiResult<Html<String>> {
     for e in s["events"].as_array().into_iter().flatten() {
         b += &format!("<tr><td>{}</td><td class=mono>{}</td></tr>", esc(e["kind"].as_str().unwrap_or("")), esc(&e["data"].to_string()));
     }
-    b += "</table></div><script>setTimeout(()=>location.reload(),4000)</script>";
+    b += "</table></div><script>if(!location.search.includes('still'))setTimeout(()=>location.reload(),4000)</script>";
     Ok(Html(page("zchan solver", &b)))
 }

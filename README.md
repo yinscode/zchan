@@ -19,6 +19,7 @@ Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2S
 | QR checkout and phone approval page | regtest e2e: altered, wrong-merchant, expired and reused invoices fail |
 | Cooperative close to Ironwood (shielded merchant payout) | regtest e2e |
 | Testnet run | runner ready ([docs/testnet.md](docs/testnet.md)); not yet run |
+| Demo video | `scripts/record.sh` records it from a live run (regtest cut made) |
 | Mainnet | refused by the code |
 
 ## Run the demo

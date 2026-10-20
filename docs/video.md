@@ -1,5 +1,7 @@
 # Two-minute video script
 
+`scripts/record.sh` records this video automatically from a live run, as captioned frames of the real terminal output and pages, joined with ffmpeg (Chrome and ffmpeg required). It writes `video/<network>/zchan-demo-<network>.mp4`; `NETWORK=testnet ZCHAN_NODE_URL=… scripts/record.sh` records the testnet cut. A voice-over or a live phone scan can be added on top.
+
 Record on testnet if the testnet run is done (docs/testnet.md); otherwise on regtest, and say so on screen. Before recording, run `KEEP=1 scripts/demo.sh` (add `NETWORK=testnet ZCHAN_NODE_URL=…` for testnet) and open three windows: the solver dashboard, merchant A's checkout page, and a terminal.
 
 | Time | Screen | Say |
