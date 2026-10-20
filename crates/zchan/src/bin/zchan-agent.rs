@@ -1,0 +1,72 @@
+//! The agent. Every command takes `--data DIR --node URL --solver URL [--dev-seed LABEL]`.
+//!
+//! ```text
+//! zchan-agent deposit                         print the address that funds channels
+//! zchan-agent open --capacity ZAT --lock-blocks N
+//! zchan-agent get URL                         x402: pay and fetch a resource
+//! zchan-agent pay-ref INVOICE_URL             pay a checkout invoice by reference
+//! zchan-agent resume                          retry payments left pending
+//! zchan-agent status
+//! zchan-agent watch                           refund watcher: broadcasts refunds when due
+//! zchan-agent serve --listen HOST:PORT        approval page for QR checkout + refund watcher
+//! ```
+
+use std::sync::Arc;
+
+use zchan::{agent::Agent, args::Args, ctx::Ctx, store, store::InvoiceRow, web};
+
+#[tokio::main]
+async fn main() {
+    let a = Args::parse();
+    let (mut cfg, listen) = a.config("127.0.0.1:7300");
+    if a.get("name").is_none() {
+        cfg.name = "agent".into();
+    }
+    let solver = a.str("solver", "http://127.0.0.1:7100");
+    let ctx = Ctx::new(cfg).await.unwrap_or_else(|e| die(e));
+    let agent = Arc::new(Agent::new(ctx.clone(), &solver));
+    let out = |v: serde_json::Value| println!("{}", serde_json::to_string_pretty(&v).unwrap());
+    match a.command.as_deref() {
+        Some("deposit") => println!("{}", ctx.deposit_address()),
+        Some("open") => {
+            let row = agent
+                .open(a.num("capacity", 1_000_000), a.num("lock-blocks", 2_000))
+                .await
+                .unwrap_or_else(|e| die(e));
+            out(serde_json::to_value(&row).unwrap());
+        }
+        Some("get") => {
+            let url = a.positional.first().unwrap_or_else(|| die("get URL"));
+            let f = agent.get(url).await.unwrap_or_else(|e| die(e));
+            out(serde_json::to_value(&f).unwrap());
+        }
+        Some("pay-ref") => {
+            let r = a.positional.first().unwrap_or_else(|| die("pay-ref INVOICE_URL"));
+            let row: InvoiceRow = web::get(&ctx.http, r).await.unwrap_or_else(|e| die(e));
+            let ack = agent.pay_invoice(&row.invoice).await.unwrap_or_else(|e| die(e));
+            out(serde_json::to_value(&ack).unwrap());
+        }
+        Some("resume") => out(serde_json::to_value(agent.resume().await.unwrap_or_else(|e| die(e))).unwrap()),
+        Some("status") => {
+            let (chans, pays) = ctx
+                .store
+                .read(|c| Ok((store::channels(c, "payer")?, store::payments(c, None)?)))
+                .unwrap_or_else(|e| die(e));
+            out(serde_json::json!({"deposit": ctx.deposit_address(), "channels": chans, "payments": pays}));
+        }
+        Some("watch") => zchan::agent::run(agent).await,
+        Some("serve") => {
+            let base = a.str("url", &format!("http://{listen}"));
+            eprintln!("zchan-agent approval page: {base}/t/{}/", agent.token);
+            tokio::spawn(zchan::agent::run(agent.clone()));
+            let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
+            axum::serve(l, zchan::agent::router(agent)).await.unwrap_or_else(|e| die(e));
+        }
+        _ => die("command: deposit | open | get | pay-ref | resume | status | watch | serve"),
+    }
+}
+
+fn die(e: impl std::fmt::Display) -> ! {
+    eprintln!("zchan-agent: {e}");
+    std::process::exit(1)
+}

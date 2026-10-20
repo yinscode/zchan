@@ -1,0 +1,41 @@
+# zchan regtest: Zakura 1.6.0, every upgrade through NU6.3 (Ironwood) at height 1 and NU7
+# (ZIP 259) at height 200 (crate zchan_tx::params::NU7_AT). Channel gates run after 200.
+# Mounted read-only by docker-compose.yml. State is ephemeral.
+
+[network]
+network = "Regtest"
+listen_addr = "0.0.0.0:18233"
+initial_testnet_peers = []
+cache_dir = false
+
+[network.testnet_parameters]
+# Zakura enforces the NU6.1 lockbox disbursement in the activation block's coinbase on
+# every network; a zero-value output satisfies it on regtest.
+lockbox_disbursements = [{ address = "t27eWDgjFYJGVXmzrXeVjnb5J3uXDM9xH9v", amount = 0 }]
+
+[network.testnet_parameters.activation_heights]
+NU5 = 1
+NU6 = 1
+"NU6.1" = 1
+"NU6.2" = 1
+"NU6.3" = 1
+NU7 = 200
+
+[mining]
+# P2PKH of the dev key `zchan_tx::keys::miner()`
+# (`cargo run -p zchan-tx --example dev_addresses`). Zakura has no `generatetoaddress`.
+miner_address = "tmBjZuzRACEaJSg8hz82kKuGWJXQbgxc1G8"
+internal_miner = false
+
+[rpc]
+listen_addr = "0.0.0.0:18232"
+enable_cookie_auth = false
+
+[state]
+ephemeral = true
+
+[mempool]
+debug_enable_at_height = 0
+
+[tracing]
+use_color = false

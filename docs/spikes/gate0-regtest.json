@@ -1,0 +1,83 @@
+[
+  {
+    "result": {
+      "branch": "77190ad9",
+      "expiry_height": 0,
+      "funding_txid": "8545c8cf130ddc0953781ca5d6b0986887d527070279c18135a7e8d0e1831829",
+      "lock_height": 220,
+      "refund_txid": "24f8572baf4689028c82870f3cbbcfbd3b22d91918a2a4728c9f81ef7e4d928d"
+    },
+    "step": "agent→solver refund signed before funding"
+  },
+  {
+    "result": {
+      "capacity": 50000000,
+      "height": 212
+    },
+    "step": "agent→solver funding confirmed"
+  },
+  {
+    "result": {
+      "accepted": false,
+      "detail": "Err(\"rpc: sendrawtransaction: {\\\"code\\\":-25,\\\"message\\\":\\\"failed to validate tx: WtxId(\\\\\\\"private\\\\\\\"), error: transaction did not pass consensus validation: transaction is locked until after block height 220\\\"}\")",
+      "tip": 219
+    },
+    "step": "refund at tip = lock − 1"
+  },
+  {
+    "result": {
+      "status": "RefundSent { txid: \"24f8572baf4689028c82870f3cbbcfbd3b22d91918a2a4728c9f81ef7e4d928d\" }",
+      "tip": 220
+    },
+    "step": "watcher at tip = lock"
+  },
+  {
+    "result": {
+      "fee": 10000,
+      "mined_height": 221,
+      "outputs_zat": [
+        49990000
+      ],
+      "txid": "24f8572baf4689028c82870f3cbbcfbd3b22d91918a2a4728c9f81ef7e4d928d"
+    },
+    "step": "refund confirmed"
+  },
+  {
+    "result": {
+      "funding_txid": "d0c6ffb17e3f4d254f9f2e05c339f81328edd19c825ad838efae843098d42c73",
+      "height": 223,
+      "lock_height": 253
+    },
+    "step": "solver→merchant funding confirmed"
+  },
+  {
+    "result": {
+      "accepted": [
+        30000,
+        70000
+      ],
+      "decreasing_refused": "Some(State(\"30000 is not above 70000\"))"
+    },
+    "step": "states"
+  },
+  {
+    "result": {
+      "fee": 10000,
+      "mined_height": 224,
+      "outputs_zat": [
+        70000,
+        49920000
+      ],
+      "txid": "8f943e19316d2da5db3faa3dd97b6b6af4f52555f77e7e28d01f5c5e7d442bd7"
+    },
+    "step": "merchant close confirmed"
+  },
+  {
+    "result": {
+      "accepted": false,
+      "detail": "Err(\"rpc: sendrawtransaction: {\\\"code\\\":-25,\\\"message\\\":\\\"failed to validate tx: WtxId(\\\\\\\"private\\\\\\\"), error: transaction did not pass consensus validation: could not find transparent input UTXO in the best chain or mempool\\\"}\")",
+      "tip": 253
+    },
+    "step": "refund after close"
+  }
+]
