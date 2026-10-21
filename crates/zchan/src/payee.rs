@@ -9,8 +9,14 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use secp256k1::{ecdsa::Signature, Message};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use zchan_tx::{keys, txid_hex};
+use zchan_tx::{
+    keys,
+    tx::{self, Pay, Spec},
+    txid_hex,
+};
 
 use crate::{
     channel::Terms,
@@ -27,6 +33,8 @@ pub fn routes() -> Router<Arc<Ctx>> {
         .route("/channels/key", get(key))
         .route("/channels/propose", post(propose))
         .route("/channels/{id}/funded", post(funded))
+        .route("/channels/{id}/close-offer", post(close_offer))
+        .route("/channels/{id}/close-sign", post(close_sign))
 }
 
 async fn key(State(ctx): State<Arc<Ctx>>) -> ApiResult<Json<KeySlot>> {
@@ -196,3 +204,172 @@ pub async fn tick(ctx: &Ctx) -> Result<()> {
     }
     Ok(())
 }
+
+// ---- Cooperative close ------------------------------------------------------------------
+
+/// A cooperative close the payee built and proved, waiting for the payer's signature.
+pub struct CoopCloseDraft {
+    pub pczt: pczt::Pczt,
+    pub cumulative: u64,
+    /// What the payee receives (its share less the close's fee above a state's).
+    pub mine: u64,
+    pub fee: u64,
+    pub both_shielded: bool,
+}
+
+/// Builds and proves the cooperative close of payee channel `row` at its latest state:
+/// the payee's share to its Ironwood address for the channel, the payer's change to the
+/// payer's Ironwood address when it gave one (else to its transparent address). The
+/// payee pays whatever the close costs above a state's fee.
+pub async fn build_coop_close(ctx: &Ctx, row: &ChannelRow) -> Result<CoopCloseDraft> {
+    if row.role != "payee" || row.status != "open" || row.cumulative == 0 {
+        return Err(Error::State(format!("channel {} is not an open payee channel with a payment", row.id)));
+    }
+    let terms = Terms::try_from(&row.terms)?;
+    let tip = ctx.tip().await?;
+    let change = terms.capacity - terms.state_fee(&ctx.p)? - row.cumulative;
+    let to = ctx.wallet.shielded_address(row.idx);
+    let payer_ironwood = row.peer_ironwood.as_deref().and_then(ironwood_address);
+    let mut spec = Spec {
+        target_height: tip + 1,
+        expiry_height: tip + 40,
+        lock_height: None,
+        inputs: vec![terms.funding_coin()?],
+        outputs: vec![
+            Pay::Ironwood(to, 1),
+            match payer_ironwood {
+                Some(a) => Pay::Ironwood(a, change),
+                None => Pay::Transparent(terms.payer_address, change),
+            },
+        ],
+        ironwood_anchor: Some(ctx.node.ironwood_anchor(tip).await?),
+        ironwood_spends: vec![],
+    };
+    let fee = tx::fee(&ctx.p, &spec)?;
+    let mine = terms.capacity.checked_sub(change + fee).filter(|m| *m > 0).ok_or_else(|| {
+        Error::State(format!(
+            "an Ironwood close costs {fee} zat; the payee's share {} does not cover it (close transparently)",
+            terms.capacity - change
+        ))
+    })?;
+    spec.outputs[0] = Pay::Ironwood(to, mine);
+    Ok(CoopCloseDraft {
+        pczt: tx::build(&ctx.p, &spec)?,
+        cumulative: row.cumulative,
+        mine,
+        fee,
+        both_shielded: payer_ironwood.is_some(),
+    })
+}
+
+/// Checks the payer's signature on the draft, adds the payee's, records the close and
+/// broadcasts it. Returns the display txid.
+pub async fn finish_coop_close(ctx: &Ctx, row: &ChannelRow, draft: CoopCloseDraft, payer_sig: &Signature) -> Result<String> {
+    let terms = Terms::try_from(&row.terms)?;
+    let sighash = tx::sighash(&draft.pczt, 0)?;
+    payer_sig
+        .verify(Message::from_digest(sighash), &terms.payer)
+        .map_err(|_| Error::Signature("payer's close signature invalid".into()))?;
+    let pczt = tx::append(draft.pczt, 0, *payer_sig)?;
+    let f = tx::extract(tx::sign(pczt, 0, &ctx.wallet.channel_key(row.idx))?)?;
+    let txid = txid_hex(&f.txid);
+    ctx.store.tx(|c| {
+        store::channel_update(c, &row.id, |r| {
+            r.status = "closing".into();
+            r.close_txid = Some(txid.clone());
+            r.settled_by = Some("coop-ironwood".into());
+        })?;
+        store::event(c, "coop_close_broadcast", json!({
+            "channel": row.id, "txid": txid, "cumulative": draft.cumulative, "payee_shielded_value": draft.mine,
+            "fee": draft.fee, "both_shielded": draft.both_shielded,
+        }))
+    })?;
+    ctx.broadcast(&f).await?;
+    Ok(txid)
+}
+
+/// A close the payee built for the payer to check and sign (payer-initiated close).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CloseOffer {
+    pub channel_id: String,
+    /// The proved PCZT, hex.
+    pub pczt: String,
+    pub cumulative: u64,
+    /// The close's fee, and what the payee receives (both paid from the payee's share).
+    pub fee: u64,
+    pub payee_value: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CloseSign {
+    pub sig: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CloseDone {
+    pub txid: String,
+}
+
+fn open_payee(ctx: &Ctx, id: &str) -> ApiResult<ChannelRow> {
+    Ok(ctx
+        .store
+        .read(|c| store::channel_get(c, id))?
+        .filter(|r| r.role == "payee" && r.status == "open")
+        .ok_or_else(|| err(StatusCode::NOT_FOUND, format!("no open channel {id}")))?)
+}
+
+/// The payer asks for a cooperative close: the payee builds it at the latest state and
+/// keeps it until the payer's signature arrives. Refused while a payment on the channel
+/// is in flight.
+async fn close_offer(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>) -> ApiResult<Json<CloseOffer>> {
+    let lock = ctx.lock(&id);
+    let _g = lock.lock().await;
+    let row = open_payee(&ctx, &id)?;
+    let inflight = ctx
+        .store
+        .read(|c| store::payments(c, Some("agent_signed")))?
+        .iter()
+        .any(|p| p.quote.body.agent_channel == id);
+    if inflight {
+        return Err(err(StatusCode::CONFLICT, "a payment on this channel is in flight"));
+    }
+    let draft = build_coop_close(&ctx, &row).await?;
+    let bytes = draft.pczt.clone().serialize().map_err(|e| Error::Other(format!("pczt: {e:?}")))?;
+    let offer = CloseOffer {
+        channel_id: id.clone(),
+        pczt: hex::encode(bytes),
+        cumulative: draft.cumulative,
+        fee: draft.fee,
+        payee_value: draft.mine,
+    };
+    ctx.store.tx(|c| store::meta_set(c, &format!("close_offer:{id}"), &serde_json::to_string(&offer).unwrap()))?;
+    Ok(Json(offer))
+}
+
+/// The payer's signature on the offered close: checked, completed and broadcast.
+async fn close_sign(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>, Json(req): Json<CloseSign>) -> ApiResult<Json<CloseDone>> {
+    let lock = ctx.lock(&id);
+    let _g = lock.lock().await;
+    let row = open_payee(&ctx, &id)?;
+    let offer: CloseOffer = ctx
+        .store
+        .read(|c| store::meta_get(c, &format!("close_offer:{id}")))?
+        .and_then(|o| serde_json::from_str(&o).ok())
+        .ok_or_else(|| err(StatusCode::NOT_FOUND, "no close offer for this channel; ask for one"))?;
+    if offer.cumulative != row.cumulative {
+        return Err(err(StatusCode::CONFLICT, "the channel moved since the offer; ask for a new one"));
+    }
+    let pczt = pczt::Pczt::parse(&hex::decode(&offer.pczt).map_err(|e| Error::Wire(e.to_string()))?)
+        .map_err(|e| Error::Wire(format!("pczt: {e:?}")))?;
+    let draft = CoopCloseDraft {
+        pczt,
+        cumulative: offer.cumulative,
+        mine: offer.payee_value,
+        fee: offer.fee,
+        both_shielded: row.peer_ironwood.is_some(),
+    };
+    let txid = finish_coop_close(&ctx, &row, draft, &sig_from_hex(&req.sig)?).await?;
+    ctx.store.tx(|c| store::meta_set(c, &format!("close_offer:{id}"), ""))?;
+    Ok(Json(CloseDone { txid }))
+}
+

@@ -19,7 +19,7 @@ Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2S
 | MPP `zchannel` charge (`WWW-Authenticate: Payment`) | regtest e2e: paid once; replayed, tampered, wrong-path and malformed credentials stay unpaid |
 | Proxy mode (gate any HTTP API) | testnet run (x402 + MPP through the proxy) and regtest e2e: free paths pass through; priced paths paid over either protocol; payment headers not forwarded; an upstream failure releases the invoice |
 | QR checkout and phone approval page | regtest e2e: altered, wrong-merchant, expired and reused invoices fail |
-| Privacy: shielded funding from Ironwood notes, cooperative close paying both sides to Ironwood, fresh change per channel ([docs/privacy.md](docs/privacy.md)) | testnet run (blocks 4,526,560–4,526,579: funding with 0 transparent inputs, close with 0 transparent outputs) and regtest e2e |
+| Privacy: shielded funding from Ironwood notes, cooperative close paying both sides to Ironwood, fresh change per channel ([docs/privacy.md](docs/privacy.md)) | testnet runs (blocks 4,526,560–4,526,623: fundings with 0 transparent inputs; merchant and agent cooperative closes with 0 transparent outputs) and regtest e2e |
 | Testnet run | **done** October 21, 2026: channels, x402 and QR payments, Ironwood and transparent closes, a refund ([docs/testnet.md](docs/testnet.md)) |
 | Demo video | `scripts/record.sh` records it from a live run (testnet and regtest cuts made) |
 | Mainnet | refused by the code |
@@ -100,7 +100,7 @@ The two regtest suites each need a fresh chain. The e2e test runs the real `zcha
 |---|---|
 | `zchan-solver` | payee of agent channels, payer of merchant channels; `/quote`, `/pay`, `/status`, `/admin/merchants` |
 | `zchan-merchant` | payee of the solver's channel; x402 routes `/paid/{resource}`, `/checkout`, `/invoices/{id}` |
-| `zchan-agent` | `deposit [--fresh]`, `shield`, `balance`, `send`, `open [--shielded]`, `get URL [--mpp]`, `pay-ref`, `resume`, `status`, `watch`, `serve` (approval page) |
+| `zchan-agent` | `deposit [--fresh]`, `shield`, `balance`, `send`, `open [--shielded]`, `close`, `get URL [--mpp]`, `pay-ref`, `resume`, `status`, `watch`, `serve` (approval page) |
 | `zchan-dev` | regtest: `fund ADDRESS ZAT`, `mine N`, `tip` |
 
 All take `--data DIR --node URL`, plus `--dev-seed LABEL` on regtest. Without a dev seed, a random seed is written to `DIR/seed`.

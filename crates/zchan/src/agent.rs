@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::{
+    channel::{ShieldedChange, Terms},
     ctx::Ctx,
     mpp, payer,
     store::{self, ChannelRow, InvoiceRow, Payment},
@@ -86,6 +87,54 @@ impl Agent {
     /// Opens a channel funded from the agent's shielded notes.
     pub async fn open_shielded(&self, capacity: u64, lock_blocks: u32) -> Result<ChannelRow> {
         payer::open(&self.ctx, &self.solver, capacity, lock_blocks, true).await
+    }
+
+    /// Closes the agent's channel cooperatively: the solver builds the close, the agent
+    /// checks that it pays the agent exactly its change (decrypting it, when shielded, to
+    /// its own Ironwood address for the channel) at the agent's own latest level, and
+    /// signs. Returns the close's display txid.
+    pub async fn close(&self, channel_id: &str) -> Result<String> {
+        let lock = self.ctx.lock(channel_id);
+        let _g = lock.lock().await;
+        let row = self
+            .ctx
+            .store
+            .read(|c| store::channel_get(c, channel_id))?
+            .filter(|r| r.role == "payer" && r.status == "open")
+            .ok_or_else(|| Error::State(format!("no open channel {channel_id}")))?;
+        let offer: crate::payee::CloseOffer =
+            web::post(&self.ctx.http, &format!("{}/channels/{channel_id}/close-offer", self.solver), &json!({})).await?;
+        if offer.cumulative != row.cumulative {
+            return Err(Error::State(format!("solver offers a close at {}, the agent signed {}", offer.cumulative, row.cumulative)));
+        }
+        let pczt = pczt::Pczt::parse(&hex::decode(&offer.pczt).map_err(|e| Error::Wire(e.to_string()))?)
+            .map_err(|e| Error::Wire(format!("pczt: {e:?}")))?;
+        let shielded = pczt
+            .clone()
+            .into_effects()
+            .ok()
+            .and_then(|fx| fx.transparent_bundle().map(|t| t.vout.is_empty()))
+            .unwrap_or(false)
+            .then(|| ShieldedChange { address: self.ctx.wallet.shielded_address(row.idx), ivk: self.ctx.wallet.shielded_ivk() });
+        let terms = Terms::try_from(&row.terms)?;
+        let sig = terms.sign_coop_close(&self.ctx.p, &self.ctx.wallet.channel_key(row.idx), &pczt, row.cumulative, shielded.as_ref())?;
+        let done: crate::payee::CloseDone = web::post(
+            &self.ctx.http,
+            &format!("{}/channels/{channel_id}/close-sign", self.solver),
+            &crate::payee::CloseSign { sig: crate::wire::sig_hex(&sig) },
+        )
+        .await?;
+        self.ctx.store.tx(|c| {
+            store::channel_update(c, channel_id, |r| {
+                r.status = "closing".into();
+                r.close_txid = Some(done.txid.clone());
+                r.settled_by = Some(if shielded.is_some() { "coop-ironwood" } else { "coop" }.into());
+            })?;
+            store::event(c, "coop_close_signed", json!({
+                "channel": channel_id, "txid": done.txid, "cumulative": row.cumulative, "both_shielded": shielded.is_some(),
+            }))
+        })?;
+        Ok(done.txid)
     }
 
     /// The newest open channel to this agent's solver.

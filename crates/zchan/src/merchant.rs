@@ -13,13 +13,8 @@ use axum::{
     Json, Router,
 };
 use serde_json::{json, Value};
-use zchan_tx::{
-    tx::{self, Pay, Spec},
-    txid_hex,
-};
 
 use crate::{
-    channel::Terms,
     ctx::Ctx,
     gate, payee,
     store::{self, InvoiceRow},
@@ -242,60 +237,12 @@ pub async fn coop_close(ctx: &Ctx, id: &str) -> Result<String> {
     let row = ctx
         .store
         .read(|c| store::channel_get(c, id))?
-        .filter(|r| r.role == "payee" && r.status == "open" && r.cumulative > 0)
-        .ok_or_else(|| Error::State(format!("no open channel {id} with a payment")))?;
-    let terms = Terms::try_from(&row.terms)?;
-    let tip = ctx.tip().await?;
-    let change = terms.capacity - terms.state_fee(&ctx.p)? - row.cumulative;
-    let to = ctx.wallet.shielded_address(row.idx);
-    let mut spec = Spec {
-        target_height: tip + 1,
-        expiry_height: tip + 40,
-        lock_height: None,
-        inputs: vec![terms.funding_coin()?],
-        // The payer's change goes to its Ironwood address when it gave one: then nothing
-        // in the close is transparent but the channel input.
-        outputs: vec![
-            Pay::Ironwood(to, 1),
-            match row.peer_ironwood.as_deref().and_then(payee::ironwood_address) {
-                Some(a) => Pay::Ironwood(a, change),
-                None => Pay::Transparent(terms.payer_address, change),
-            },
-        ],
-        ironwood_anchor: Some(ctx.node.ironwood_anchor(tip).await?),
-        ironwood_spends: vec![],
-    };
-    let fee = tx::fee(&ctx.p, &spec)?;
-    let mine = terms
-        .capacity
-        .checked_sub(change + fee)
-        .filter(|m| *m > 0)
-        .ok_or_else(|| {
-            Error::State(format!(
-                "an Ironwood close costs {fee} zat; the merchant's share {} does not cover it (close transparently)",
-                terms.capacity - change
-            ))
-        })?;
-    spec.outputs[0] = Pay::Ironwood(to, mine);
-    let pczt = tx::build(&ctx.p, &spec)?;
-    let bytes = pczt.clone().serialize().map_err(|e| Error::Other(format!("pczt: {e:?}")))?;
+        .ok_or_else(|| Error::State(format!("no channel {id}")))?;
+    let draft = payee::build_coop_close(ctx, &row).await?;
+    let bytes = draft.pczt.clone().serialize().map_err(|e| Error::Other(format!("pczt: {e:?}")))?;
     let req = CoopCloseReq { pczt: hex::encode(bytes), cumulative: row.cumulative };
     let resp: CoopCloseResp = web::post(&ctx.http, &format!("{}/channels/{id}/coop-close", row.peer_url), &req).await?;
-    let pczt = tx::append(pczt, 0, sig_from_hex(&resp.sig)?)?;
-    let f = tx::extract(tx::sign(pczt, 0, &ctx.wallet.channel_key(row.idx))?)?;
-    let txid = txid_hex(&f.txid);
-    ctx.store.tx(|c| {
-        store::channel_update(c, id, |r| {
-            r.status = "closing".into();
-            r.close_txid = Some(txid.clone());
-            r.settled_by = Some("coop-ironwood".into());
-        })?;
-        store::event(c, "coop_close_broadcast", json!({
-            "channel": id, "txid": txid, "ironwood_value": mine, "fee": fee, "both_shielded": row.peer_ironwood.is_some(),
-        }))
-    })?;
-    ctx.broadcast(&f).await?;
-    Ok(txid)
+    payee::finish_coop_close(ctx, &row, draft, &sig_from_hex(&resp.sig)?).await
 }
 
 async fn status_json(State(ctx): State<Arc<Ctx>>) -> ApiResult<Json<Value>> {

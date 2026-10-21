@@ -651,10 +651,19 @@ async fn e2e() {
     let cb = post(&format!("{B}/admin/channels/{}/close", mchan[B]), json!({})).await.unwrap();
     let outs_b = close_outputs(&rt, cb["txid"].as_str().unwrap()).await;
     assert_eq!(outs_b, vec![20_000, 40_000 - 10_000 - 20_000]);
+    // Agent channel: the agent asks for a cooperative close and co-signs it; both sides
+    // are paid to Ironwood.
     let level1 = cum(&c1.id).await;
-    let c1c = post(&format!("{SOLVER}/admin/channels/{}/close", c1.id), json!({})).await.unwrap();
-    let outs_1 = close_outputs(&rt, c1c["txid"].as_str().unwrap()).await;
-    assert_eq!(outs_1, vec![level1, 1_000_000 - 10_000 - level1]);
+    let close1 = ag1.close(&c1.id).await.unwrap();
+    let outs_1 = close_outputs(&rt, &close1).await;
+    assert!(outs_1.is_empty(), "agent channel closed with nothing transparent: {outs_1:?}");
+    let tip = rt.tip().await.unwrap();
+    let change_1 = 1_000_000 - 10_000 - level1;
+    let agent_notes = zchan_tx::notes::unspent(&rt.node, &Wallet::dev("agent-1").shielded_fvk(), tip - 3, tip).await.unwrap();
+    assert!(agent_notes.iter().any(|n| n.value() == change_1), "agent received exactly its change, shielded");
+    let solver_notes = zchan_tx::notes::unspent(&rt.node, &Wallet::dev("solver").shielded_fvk(), tip - 3, tip).await.unwrap();
+    assert!(solver_notes.iter().any(|n| n.value() == level1 - 10_000), "solver received its share less the extra fee, shielded");
+    wait_until("solver sees the agent-1 close", 60, || async { solver_channel(&c1.id).await["status"] == "closed" }).await;
     let cd = reqwest::Client::new()
         .post(format!("{D}/admin/channels/{}/close", mchan[D]))
         .header("x-admin-token", ADMIN)
@@ -666,7 +675,7 @@ async fn e2e() {
     let outs_d = close_outputs(&rt, cd["txid"].as_str().unwrap()).await;
     let level_d = cum(&mchan[D]).await;
     assert_eq!(outs_d, vec![level_d, 200_000 - 10_000 - level_d]);
-    log.note("transparent closes", json!({"merchant-b": {"txid": cb["txid"], "outputs_zat": outs_b}, "agent-1": {"txid": c1c["txid"], "outputs_zat": outs_1}}));
+    log.note("closes: merchant-b transparent, agent-1 cooperative and shielded", json!({"merchant-b": {"txid": cb["txid"], "outputs_zat": outs_b}, "agent-1": {"txid": close1, "transparent_outputs": outs_1, "agent_change_shielded": change_1, "solver_share_shielded": level1 - 10_000}}));
     reconciled(&mut log, "final").await;
 
     if let Ok(path) = std::env::var("ZCHAN_RESULTS") {

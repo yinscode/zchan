@@ -1,0 +1,47 @@
+{
+  "network": "zcash:testnet",
+  "funding_from_notes": {
+    "solver\u2192merchant-a": {
+      "txid": "68d59e7aa846e6076173bca4775604504217c299f00c6f394a4e807375bac260",
+      "height": 4526612,
+      "transparent_inputs": 0,
+      "capacity": 100000
+    },
+    "agent-1\u2192solver": {
+      "txid": "801e5a16b738869d36aabb4ffd509b77d2fe30b65d134a1884f2bc7f9cd6ab67",
+      "height": 4526618,
+      "transparent_inputs": 0,
+      "capacity": 50000
+    }
+  },
+  "payment": {
+    "amount": 20000,
+    "channel_id": "68d59e7aa846e6076173bca4775604504217c299f00c6f394a4e807375bac260:0",
+    "cumulative": 20000,
+    "invoice_id": "3027e2b36527eb6a64478f9129db5c61",
+    "merchant_id": "merchant-a"
+  },
+  "agent_initiated_close": {
+    "txid": "05ac56266209177d7da7654e8776be08c4e0915e34510013b767aec175d92216",
+    "height": 4526621,
+    "transparent_inputs": 1,
+    "transparent_outputs": 0,
+    "into_ironwood": 30000,
+    "notes": {
+      "agent-1": 19900,
+      "solver": 10100
+    }
+  },
+  "merchant_close": {
+    "txid": "4b4e658a377d1204734bcb1ee2a71b77148100840835f0e6ddc2b65587d15ebf",
+    "height": 4526623,
+    "transparent_inputs": 1,
+    "transparent_outputs": 0,
+    "into_ironwood": 80000,
+    "notes": {
+      "solver": 70000,
+      "merchant-a": 10000
+    }
+  },
+  "reconcile_ok": true
+}

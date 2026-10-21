@@ -12,6 +12,7 @@
 //! zchan-agent get URL [--mpp] [--method M --body B]
 //!                                             pay a 402 (x402 v2, or MPP with --mpp) and fetch
 //! zchan-agent pay-ref INVOICE_URL             pay a checkout invoice by reference
+//! zchan-agent close [--channel ID]            cooperative close (both sides to Ironwood)
 //! zchan-agent resume                          retry payments left pending
 //! zchan-agent status
 //! zchan-agent watch                           refund watcher: broadcasts refunds when due
@@ -89,6 +90,13 @@ async fn main() {
             let (_, addr) = zchan_tx::keys::decode(to).unwrap_or_else(|| die("bad address"));
             println!("{}", zchan::payer::send(&ctx, addr, amount).await.unwrap_or_else(|e| die(e)));
         }
+        Some("close") => {
+            let id = match a.get("channel") {
+                Some(id) => id.to_string(),
+                None => agent.channel().unwrap_or_else(|e| die(e)).id,
+            };
+            println!("{}", agent.close(&id).await.unwrap_or_else(|e| die(e)));
+        }
         Some("resume") => out(serde_json::to_value(agent.resume().await.unwrap_or_else(|e| die(e))).unwrap()),
         Some("status") => {
             let (chans, pays) = ctx
@@ -105,7 +113,7 @@ async fn main() {
             let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
             axum::serve(l, zchan::agent::router(agent)).await.unwrap_or_else(|e| die(e));
         }
-        _ => die("command: deposit | shield | balance | notes | send | open | get | pay-ref | resume | status | watch | serve"),
+        _ => die("command: deposit | shield | balance | notes | send | open | close | get | pay-ref | resume | status | watch | serve"),
     }
 }
 

@@ -35,17 +35,18 @@ What zchan hides depends on how a channel is funded and closed. The private path
   - At opening, the payer gives a fresh Ironwood address for that channel (a diversified address of its account).
   - The payee builds the close with both outputs shielded and pays any extra fee from its share. Two Ironwood outputs cost 20,000 zat against 10,000 for a state.
   - The payer co-signs only after checking that the transaction spends only the channel output, pays nothing transparently, and contains one output to its address whose note commitment matches and which its key decrypts to exactly its change.
+- **Agent channels close the same way, started by the agent** (`zchan-agent close`):
+  - The agent asks the solver for a close offer. The solver builds and proves the close at the latest level, keeps it, and returns it.
+  - The agent checks the offer against its own signed level, decrypts its change, and signs.
+  - The solver checks that signature, adds its own, and broadcasts.
+  - Agents need no server of their own.
 - **Fresh transparent change:** with transparent funding, coins are chosen fewest first, and change goes to a new address for that channel, never back to the deposit address. `zchan-agent deposit --fresh` gives an unused deposit address.
 
 ## Evidence
 
-Testnet, blocks 4,526,560–4,526,579 ([testnet.md](testnet.md)):
-- **Two channels funded with no transparent inputs.**
-- **A cooperative close with no transparent outputs**, after which the merchant and the solver each found their note with their own viewing key.
-
-## Gaps
-
-- **Agent channels have no cooperative close yet.** The solver closes them alone, so those closes are transparent.
+Testnet, blocks 4,526,560–4,526,623 ([testnet.md](testnet.md)):
+- **Four channels funded with no transparent inputs.**
+- **Three cooperative closes with no transparent outputs:** two merchant closes, and an agent close started by the agent. After each, both sides found their note with their own viewing key.
 
 ## Claims this supports
 

@@ -21,6 +21,29 @@ Every channel reconciled on the solver (`reconcile: ok` for all four). Funds cam
 
 Everything that runs on regtest runs on testnet unchanged. Only the node, the funding and the lock lengths differ.
 
+## Agent-initiated shielded close on testnet (blocks 4,526,607–4,526,623)
+
+Agent-1 funded a channel from notes, made one payment, and closed it cooperatively. It asked the solver for a close offer, checked that the offer paid its own change to its Ironwood address at its own signed level, and co-signed. Merchant-a then closed its channel the same way. Both closes spend only the channel output and have **no transparent outputs**. The record is in [spikes/testnet-agent-close.json](spikes/testnet-agent-close.json).
+
+| Step | Txid | Height | On chain |
+|---|---|---|---|
+| solver → merchant-a channel, funded from notes | `68d59e7aa846e6076173bca4775604504217c299f00c6f394a4e807375bac260` | 4,526,612 | 0 transparent inputs; channel output 100,000 |
+| agent-1 → solver channel, funded from notes | `801e5a16b738869d36aabb4ffd509b77d2fe30b65d134a1884f2bc7f9cd6ab67` | 4,526,618 | 0 transparent inputs; channel output 50,000 |
+| Payment: x402 `/paid/weather` (20,000 + 100 fee) | none | — | agent level 20,100; merchant level 20,000 |
+| agent-1 channel: cooperative close, started by the agent | `05ac56266209177d7da7654e8776be08c4e0915e34510013b767aec175d92216` | 4,526,621 | 1 transparent input, **0 transparent outputs**; 30,000 into Ironwood |
+| merchant-a channel: cooperative close | `4b4e658a377d1204734bcb1ee2a71b77148100840835f0e6ddc2b65587d15ebf` | 4,526,623 | 1 transparent input, **0 transparent outputs**; 80,000 into Ironwood |
+
+Notes each owner found with its own viewing key afterwards:
+
+| Close | Owner | Note | Why that amount |
+|---|---|---|---|
+| agent channel | agent-1 | 19,900 | its change: 50,000 − 10,000 − 20,100 |
+| agent channel | solver | 10,100 | its 20,100, less the extra 10,000 fee of a shielded close |
+| merchant channel | solver | 70,000 | its change: 100,000 − 10,000 − 20,000 |
+| merchant channel | merchant-a | 10,000 | its 20,000, less the extra fee |
+
+The solver's books reconciled after both closes.
+
 ## Shielded funding and a fully shielded cooperative close on testnet (blocks 4,526,560–4,526,579)
 
 The solver and agent-1 moved their transparent coins into their shielded accounts. Each then funded a channel from Ironwood notes, so neither funding transaction has a transparent input. After two payments, merchant-a closed cooperatively with both sides paid to Ironwood: the close spends the channel output and has no transparent outputs. The record is in [spikes/testnet-shielded.json](spikes/testnet-shielded.json).
