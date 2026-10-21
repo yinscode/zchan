@@ -1,6 +1,6 @@
 # zchan
 
-Payment channels for AI agents on Zcash. An agent funds **one** channel to a solver and pays any merchant through it. The solver keeps **one** channel to each merchant, and every agent's purchases from that merchant advance it. Merchants get paid over HTTP 402 ([x402 v2](docs/x402-zchannel.md)) or a QR checkout. No transaction is broadcast per payment.
+Payment channels for AI agents on Zcash. An agent funds **one** channel to a solver and pays any merchant through it. The solver keeps **one** channel to each merchant, and every agent's purchases from that merchant advance it. Merchants get paid over HTTP 402, as [x402 v2](docs/x402-zchannel.md) or [MPP](docs/mpp-zchannel.md), or through a QR checkout. In proxy mode a merchant puts an existing API behind payment without changing its code. No transaction is broadcast per payment.
 
 ```
 agent-1 ──channel──▶ ┌────────┐ ──channel──▶ merchant-a
@@ -16,6 +16,8 @@ Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2S
 | Channel layer (refund before funding, states, verifier, closes) | regtest gate passes ([gate0](docs/spikes/gate0-regtest.json)) |
 | Solver, merchants, agents; idempotent payments, credits, crash recovery | regtest end-to-end test passes ([e2e](docs/spikes/e2e-regtest.json)) |
 | x402 v2 `zchannel` route and client | regtest e2e: paid once; replayed, mismatched, forged, malformed and expired credentials stay unpaid |
+| MPP `zchannel` charge (`WWW-Authenticate: Payment`) | regtest e2e: paid once; replayed, tampered, wrong-path and malformed credentials stay unpaid |
+| Proxy mode (gate any HTTP API) | regtest e2e: free paths pass through; priced paths paid over either protocol; payment headers not forwarded; an upstream failure releases the invoice |
 | QR checkout and phone approval page | regtest e2e: altered, wrong-merchant, expired and reused invoices fail |
 | Cooperative close to Ironwood (shielded merchant payout) | regtest e2e |
 | Testnet run | **done** October 21, 2026: channels, x402 and QR payments, Ironwood and transparent closes, a refund ([docs/testnet.md](docs/testnet.md)) |
@@ -45,6 +47,28 @@ With `KEEP=1` the services keep running and it prints the dashboard, POS and app
 | Agent approval page (open it from the merchant's invoice page on a phone) | printed by the script |
 
 For a phone on the same network, run with `HOST=<your LAN IP>`.
+
+## Proxy mode
+
+Put an existing HTTP service behind payment:
+
+```bash
+zchan-merchant --name my-api --solver http://127.0.0.1:7100 --upstream http://127.0.0.1:3000 --routes '/api/search=3000,/api/*=500' --listen 0.0.0.0:7204 --url https://my-api.example --admin-token "$TOKEN" --data ./data/my-api --node "$ZCHAN_NODE_URL"
+```
+
+Requests that match no merchant route go to the upstream service:
+- **Priced paths** (first match wins; a trailing `*` matches a prefix) answer 402 until paid, over x402 or MPP.
+- **Other paths** pass through free.
+
+The merchant's own paths take precedence over the upstream's: `/info`, `/channels/…`, `/invoices…`, `/checkout`, `/paid/…`, `/status`, `/admin/…`. Payment headers are stripped before forwarding. A service that listens beyond localhost must set `--admin-token`; `/admin/*` then requires `X-Admin-Token`.
+
+An agent pays and fetches with:
+
+```bash
+zchan-agent get https://my-api.example/api/search?q=zec --solver http://127.0.0.1:7100 --data ./data/agent
+```
+
+Add `--mpp` to pay over MPP, and `--method POST --body '…'` for other methods.
 
 ## Tests
 

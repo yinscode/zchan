@@ -25,7 +25,7 @@
 | Oct 27: record | **recorded**: testnet and regtest cuts, 2:00 each (`scripts/record.sh`) | `docs/video.md` |
 | Oct 28: submit | **prepared**: description, checklist and video ready; the submission itself is made from the user's account | `docs/submission.md` |
 
-P1 built: QR checkout, Ironwood cooperative close, second agent in the demo, status page. P2 untouched, as planned.
+P1 built: QR checkout, Ironwood cooperative close, second agent in the demo, status page. From P2, built after the gates: the MPP adapter (`docs/mpp-zchannel.md`) and proxy mode, both covered by the regtest e2e test.
 
 ## 1. Decisions
 

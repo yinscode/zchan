@@ -1,19 +1,19 @@
-//! A merchant: payee of the solver's channel, issuer of invoices, and an x402 resource
-//! server. It serves a paid resource once per invoice, against its own signed
-//! acknowledgment of the channel state that paid it.
+//! A merchant: payee of the solver's channel, issuer of invoices, and a resource server
+//! paid over x402 v2 or MPP (`gate`). It serves a paid resource once per invoice, against
+//! its own signed acknowledgment of the channel state that paid it. In proxy mode it
+//! gates and forwards requests to an existing HTTP service.
 
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderMap, HeaderValue, StatusCode},
+    http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
 use serde_json::{json, Value};
 use zchan_tx::{
-    keys,
     tx::{self, Pay, Spec},
     txid_hex,
 };
@@ -21,13 +21,10 @@ use zchan_tx::{
 use crate::{
     channel::Terms,
     ctx::Ctx,
-    payee,
+    gate, payee,
     store::{self, InvoiceRow},
     web::{self, err, esc, page, zec, ApiResult},
-    wire::{
-        now, random_id, sig_from_hex, Ack, CoopCloseReq, CoopCloseResp, Info, Invoice, Signed, UpdateReq, ACK, INVOICE,
-    },
-    x402::{self, PaymentPayload, PaymentRequired, PaymentRequirements, ResourceInfo, SettlementResponse, ZchannelExtra},
+    wire::{now, sig_from_hex, Ack, CoopCloseReq, CoopCloseResp, Info, Invoice, Signed, UpdateReq, ACK},
     Error, Result,
 };
 
@@ -44,6 +41,7 @@ pub fn router(ctx: Arc<Ctx>) -> Router {
         .route("/admin/channels/{id}/coop-close", post(admin_coop_close))
         .route("/status", get(status_html))
         .route("/status.json", get(status_json))
+        .fallback(gate::proxy)
         .with_state(ctx)
 }
 
@@ -66,24 +64,6 @@ async fn info(State(ctx): State<Arc<Ctx>>) -> Json<Info> {
         fee: 0,
         max_payment: 0,
     })
-}
-
-fn issue(ctx: &Ctx, amount: u64, resource: &str) -> Result<Signed<Invoice>> {
-    let inv = Signed::sign(
-        INVOICE,
-        Invoice {
-            id: random_id(),
-            merchant_id: ctx.cfg.name.clone(),
-            amount,
-            resource: resource.into(),
-            expires_at: now() + ctx.cfg.invoice_ttl,
-        },
-        &ctx.identity(),
-    );
-    ctx.store.tx(|c| {
-        store::invoice_put(c, &InvoiceRow { invoice: inv.clone(), status: "open".into(), ack: None })
-    })?;
-    Ok(inv)
 }
 
 /// The solver pushes a state that pays one invoice; the answer is the signed
@@ -139,115 +119,13 @@ async fn update(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>, Json(req): 
     Ok(Json(ack))
 }
 
-fn header(v: &str) -> HeaderValue {
-    HeaderValue::from_str(v).expect("base64 is a valid header value")
-}
-
-/// A 402 with a fresh invoice for `path`.
-fn required(ctx: &Ctx, path: &str, error: Option<String>, failure: Option<SettlementResponse>) -> Response {
-    let inv = match issue(ctx, ctx.cfg.price, path) {
-        Ok(i) => i,
-        Err(e) => return web::ApiError::from(e).into_response(),
-    };
-    let body = PaymentRequired {
-        x402_version: x402::VERSION,
-        error,
-        resource: ResourceInfo {
-            url: format!("{}{path}", ctx.cfg.base_url),
-            description: Some(format!("{} from {}", path.trim_start_matches("/paid/"), ctx.cfg.name)),
-            mime_type: Some("application/json".into()),
-        },
-        accepts: vec![PaymentRequirements {
-            scheme: x402::SCHEME.into(),
-            network: ctx.network.clone(),
-            amount: ctx.cfg.price.to_string(),
-            asset: "ZEC".into(),
-            pay_to: ctx.cfg.name.clone(),
-            max_timeout_seconds: ctx.cfg.invoice_ttl,
-            extra: ZchannelExtra { payment_flow: "upfront".into(), invoice: inv, solver: ctx.cfg.solver_url.clone() },
-        }],
-    };
-    let mut h = HeaderMap::new();
-    h.insert(x402::PAYMENT_REQUIRED, header(&x402::encode(&body)));
-    if let Some(f) = failure {
-        h.insert(x402::PAYMENT_RESPONSE, header(&x402::encode(&f)));
-    }
-    (StatusCode::PAYMENT_REQUIRED, h, Json(json!({}))).into_response()
-}
-
-/// Checks a payment payload for `path`; on success marks its invoice served.
-fn accept_payment(ctx: &Ctx, path: &str, pp: &PaymentPayload) -> std::result::Result<Signed<Invoice>, String> {
-    if pp.x402_version != x402::VERSION {
-        return Err("unsupported_version".into());
-    }
-    if pp.accepted.scheme != x402::SCHEME || pp.accepted.network != ctx.network {
-        return Err("unsupported_scheme_or_network".into());
-    }
-    let ack = &pp.payload.ack;
-    if ack.verify_by(ACK, &keys::pubkey(&ctx.identity())).is_err() || ack.body.merchant_id != ctx.cfg.name {
-        return Err("invalid_acknowledgment".into());
-    }
-    if pp.accepted.extra.invoice.body.id != ack.body.invoice_id {
-        return Err("invoice_mismatch".into());
-    }
-    ctx.store
-        .tx(|c| {
-            let Some(row) = store::invoice_get(c, &ack.body.invoice_id)? else {
-                return Ok(Err("unknown_invoice".to_string()));
-            };
-            if row.invoice.body.resource != path {
-                return Ok(Err("resource_mismatch".into()));
-            }
-            match row.status.as_str() {
-                "paid" if row.ack.as_ref() == Some(ack) => {
-                    store::invoice_put(c, &InvoiceRow { status: "served".into(), ..row.clone() })?;
-                    store::event(c, "resource_served", json!({"invoice": row.invoice.body.id, "resource": path}))?;
-                    Ok(Ok(row.invoice))
-                }
-                "served" => Ok(Err("invoice_already_used".into())),
-                _ => Ok(Err("unpaid".into())),
-            }
-        })
-        .unwrap_or_else(|e| Err(format!("server_error: {e}")))
-}
-
-/// `GET /paid/{resource}`: x402 v2, scheme `zchannel`.
+/// `GET /paid/{resource}`: a demo resource at the merchant's `--price`, payable over
+/// x402 v2 or MPP.
 async fn paid(State(ctx): State<Arc<Ctx>>, Path(resource): Path<String>, headers: HeaderMap) -> Response {
     let path = format!("/paid/{resource}");
-    let Some(h) = headers.get(x402::PAYMENT_SIGNATURE) else {
-        return required(&ctx, &path, Some(format!("{} header is required", x402::PAYMENT_SIGNATURE)), None);
-    };
-    let pp: PaymentPayload = match h.to_str().map_err(|e| e.to_string()).and_then(|s| x402::decode(s).map_err(|e| e.to_string())) {
-        Ok(p) => p,
-        Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({"error": format!("invalid payment payload: {e}")}))).into_response(),
-    };
-    match accept_payment(&ctx, &path, &pp) {
-        Ok(inv) => {
-            let settled = SettlementResponse {
-                success: true,
-                error_reason: None,
-                transaction: String::new(),
-                network: ctx.network.clone(),
-                amount: Some(inv.body.amount.to_string()),
-            };
-            let mut h = HeaderMap::new();
-            h.insert(x402::PAYMENT_RESPONSE, header(&x402::encode(&settled)));
-            let body = json!({
-                "resource": path, "merchant": ctx.cfg.name, "invoice": inv.body.id,
-                "data": format!("{} · paid content from {} at {}", resource, ctx.cfg.name, now()),
-            });
-            (StatusCode::OK, h, Json(body)).into_response()
-        }
-        Err(reason) => {
-            let failure = SettlementResponse {
-                success: false,
-                error_reason: Some(reason.clone()),
-                transaction: String::new(),
-                network: ctx.network.clone(),
-                amount: None,
-            };
-            required(&ctx, &path, Some(reason), Some(failure))
-        }
+    match gate::check(&ctx, &path, ctx.cfg.price, &headers) {
+        Ok(p) => (StatusCode::OK, p.headers, Json(gate::demo_body(&ctx, &path, &p.invoice))).into_response(),
+        Err(resp) => resp,
     }
 }
 
@@ -261,7 +139,7 @@ async fn new_invoice(State(ctx): State<Arc<Ctx>>, Json(req): Json<NewInvoice>) -
     if req.amount == 0 {
         return Err(err(StatusCode::BAD_REQUEST, "amount must be positive"));
     }
-    Ok(Json(issue(&ctx, req.amount, &req.resource)?))
+    Ok(Json(gate::issue(&ctx, req.amount, &req.resource)?))
 }
 
 /// The invoice as JSON; to a browser (a phone that scanned the checkout QR), a page that
@@ -309,7 +187,7 @@ async fn checkout(State(ctx): State<Arc<Ctx>>, Query(q): Query<HashMap<String, S
         None => {
             let amount: u64 = q.get("amount").and_then(|a| a.parse().ok()).unwrap_or(ctx.cfg.price);
             let item = q.get("item").cloned().unwrap_or_else(|| "order".into());
-            issue(&ctx, amount, &format!("checkout:{item}"))?
+            gate::issue(&ctx, amount, &format!("checkout:{item}"))?
         }
     };
     let amount = inv.body.amount;
@@ -341,12 +219,14 @@ poll();
     Ok(Html(page(&format!("{} checkout", ctx.cfg.name), &b)))
 }
 
-async fn admin_close(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+async fn admin_close(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>, headers: HeaderMap) -> ApiResult<Json<Value>> {
+    gate::admin(&ctx, &headers)?;
     let txid = payee::close_now(&ctx, &id).await?;
     Ok(Json(json!({"channel": id, "txid": txid})))
 }
 
-async fn admin_coop_close(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+async fn admin_coop_close(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>, headers: HeaderMap) -> ApiResult<Json<Value>> {
+    gate::admin(&ctx, &headers)?;
     let txid = coop_close(&ctx, &id).await?;
     Ok(Json(json!({"channel": id, "txid": txid})))
 }

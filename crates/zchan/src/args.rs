@@ -73,8 +73,19 @@ impl Args {
             price: self.num("price", d.price),
             invoice_ttl: self.num("invoice-ttl", d.invoice_ttl),
             invoice_grace: self.num("invoice-grace", d.invoice_grace),
+            upstream: self.get("upstream").map(str::to_owned),
+            routes: self.get("routes").map(|r| crate::gate::parse_routes(r).unwrap_or_else(|e| {
+                eprintln!("--routes: {e}");
+                std::process::exit(2)
+            })).unwrap_or_default(),
+            admin_token: self.get("admin-token").map(str::to_owned).or_else(|| std::env::var("ZCHAN_ADMIN_TOKEN").ok()),
             fault: self.get("fault").map(str::to_owned).or_else(|| std::env::var("ZCHAN_FAULT").ok()),
         };
+        let loopback = listen.starts_with("127.") || listen.starts_with("localhost:") || listen.starts_with("[::1]");
+        if !loopback && cfg.admin_token.is_none() && self.command.as_deref() != Some("serve") {
+            eprintln!("listening on {listen}: set --admin-token (or ZCHAN_ADMIN_TOKEN) to protect /admin/*");
+            std::process::exit(2);
+        }
         (cfg, listen)
     }
 }

@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Html,
     routing::{get, post},
     Json, Router,
@@ -78,7 +78,8 @@ async fn info(State(ctx): State<Arc<Ctx>>) -> Json<Info> {
 }
 
 /// Closes an agent channel now with its best state (end-of-day settlement).
-async fn admin_close(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+async fn admin_close(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>, headers: HeaderMap) -> ApiResult<Json<Value>> {
+    crate::gate::admin(&ctx, &headers)?;
     let txid = payee::close_now(&ctx, &id).await?;
     Ok(Json(json!({"channel": id, "txid": txid})))
 }
@@ -91,7 +92,8 @@ struct AddMerchantReq {
 }
 
 /// Registers a merchant and opens the solver's channel to it.
-async fn add_merchant(State(ctx): State<Arc<Ctx>>, Json(req): Json<AddMerchantReq>) -> ApiResult<Json<MerchantRow>> {
+async fn add_merchant(State(ctx): State<Arc<Ctx>>, headers: HeaderMap, Json(req): Json<AddMerchantReq>) -> ApiResult<Json<MerchantRow>> {
+    crate::gate::admin(&ctx, &headers)?;
     let url = req.url.trim_end_matches('/').to_string();
     let i: Info = web::get(&ctx.http, &format!("{url}/info")).await?;
     if i.role != "merchant" || i.network != ctx.network {

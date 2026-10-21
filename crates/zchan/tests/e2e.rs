@@ -24,7 +24,8 @@ use std::{
 
 use serde_json::{json, Value};
 use zchan::{
-    agent::Agent,
+    agent::{Agent, Protocol},
+    mpp,
     ctx::{Config, Ctx},
     payer, store,
     store::InvoiceRow,
@@ -39,7 +40,10 @@ const SOLVER: &str = "http://127.0.0.1:17100";
 const A: &str = "http://127.0.0.1:17201";
 const B: &str = "http://127.0.0.1:17202";
 const C: &str = "http://127.0.0.1:17203";
+const D: &str = "http://127.0.0.1:17204";
 const UI: &str = "http://127.0.0.1:17300";
+const UPSTREAM: &str = "127.0.0.1:17400";
+const ADMIN: &str = "t0ken";
 
 fn node_url() -> String {
     std::env::var("ZCHAN_NODE_URL").unwrap_or("http://127.0.0.1:18272/".into())
@@ -210,6 +214,25 @@ async fn close_outputs(rt: &Regtest, txid: &str) -> Vec<u64> {
     }
 }
 
+/// The existing API that merchant D fronts in proxy mode. It reports which headers it
+/// received, so the test can check that payment headers are not forwarded.
+async fn upstream() {
+    use axum::{extract::Query, http::HeaderMap, routing::{get, post}, Router};
+    let names = |h: &HeaderMap| h.keys().map(|k| k.as_str().to_string()).collect::<Vec<_>>();
+    let app = Router::new()
+        .route("/free", get(|| async { "free" }))
+        .route(
+            "/api/search",
+            get(move |Query(q): Query<std::collections::HashMap<String, String>>, h: HeaderMap| async move {
+                axum::Json(json!({"q": q.get("q"), "headers": names(&h)}))
+            }),
+        )
+        .route("/api/echo", post(move |h: HeaderMap, body: String| async move { axum::Json(json!({"echo": body, "headers": names(&h)})) }))
+        .route("/api/boom", get(|| async { (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "boom") }));
+    let l = tokio::net::TcpListener::bind(UPSTREAM).await.unwrap();
+    tokio::spawn(axum::serve(l, app).into_future());
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs infra/zakura (fresh chain)"]
 async fn e2e() {
@@ -231,10 +254,19 @@ async fn e2e() {
         "merchant-c",
         &["--solver", SOLVER, "--price", "1000", "--fault", "refuse_update", "--invoice-ttl", "6", "--invoice-grace", "0"],
     );
-    for s in [&mut solver, &mut ma, &mut mb, &mut mc] {
+    let routes = "/api/search=3000,/api/*=500";
+    let mut md = Svc::new(
+        env!("CARGO_BIN_EXE_zchan-merchant"),
+        D,
+        &dir,
+        "merchant-d",
+        &["--solver", SOLVER, "--upstream", &format!("http://{UPSTREAM}"), "--routes", routes, "--admin-token", ADMIN],
+    );
+    upstream().await;
+    for s in [&mut solver, &mut ma, &mut mb, &mut mc, &mut md] {
         s.start(&[]);
     }
-    for s in [&solver, &ma, &mb, &mc] {
+    for s in [&solver, &ma, &mb, &mc, &md] {
         s.up().await;
     }
     let sinfo = get(&format!("{SOLVER}/info")).await;
@@ -242,7 +274,7 @@ async fn e2e() {
 
     // ---- Oct 22–23: channels -----------------------------------------------------------
     let mut mchan = std::collections::HashMap::new();
-    for (url, cap) in [(A, 2_000_000u64), (B, 40_000), (C, 100_000)] {
+    for (url, cap) in [(A, 2_000_000u64), (B, 40_000), (C, 100_000), (D, 200_000)] {
         let m = post(&format!("{SOLVER}/admin/merchants"), json!({"url": url, "capacity": cap, "lock_blocks": 300})).await.unwrap();
         log.note("solver→merchant channel open", json!({"merchant": m["id"], "channel": m["channel_id"], "capacity": cap}));
         mchan.insert(url, m["channel_id"].as_str().unwrap().to_string());
@@ -295,6 +327,74 @@ async fn e2e() {
     let still = ag1.get_with(&format!("{A}/paid/weather"), &pp2).await.unwrap();
     assert_eq!(still.status, 200, "the mismatched attempts left the invoice unserved");
     log.note("x402", json!({"paid": 200, "replay": reason(&replay), "mismatch": reason(&mism), "other_merchant": reason(&other), "forged": reason(&bad), "malformed": 400}));
+
+    // ---- Proxy mode (merchant D in front of an existing API) and MPP ---------------------
+    let free = reqwest::get(format!("{D}/free")).await.unwrap();
+    assert_eq!((free.status().as_u16(), free.text().await.unwrap()), (200, "free".to_string()), "unpriced paths pass through");
+    let raw = reqwest::get(format!("{D}/api/search?q=x")).await.unwrap();
+    assert_eq!(raw.status().as_u16(), 402);
+    assert!(raw.headers().contains_key(x402::PAYMENT_REQUIRED), "x402 offer");
+    let www = raw.headers()["www-authenticate"].to_str().unwrap().to_string();
+    let ch = mpp::Challenge::parse(&www).unwrap();
+    assert_eq!((ch.method.as_str(), ch.intent.as_str(), ch.charge().unwrap().amount.as_str()), ("zchannel", "charge", "3000"));
+    let px = ag1.get(&format!("{D}/api/search?q=zec")).await.unwrap();
+    assert_eq!((px.status, px.body["q"].as_str()), (200, Some("zec")), "{px:?}");
+    assert_eq!(px.settlement.as_ref().unwrap().amount.as_deref(), Some("3000"));
+    let fwd: Vec<String> = serde_json::from_value(px.body["headers"].clone()).unwrap();
+    assert!(!fwd.iter().any(|h| h == "payment-signature"), "payment header not forwarded: {fwd:?}");
+    let pm = ag2.fetch(reqwest::Method::GET, &format!("{D}/api/search?q=mpp"), None, Protocol::Mpp).await.unwrap();
+    assert_eq!((pm.status, pm.body["q"].as_str()), (200, Some("mpp")), "{pm:?}");
+    let receipt = pm.receipt.clone().expect("Payment-Receipt");
+    assert_eq!((receipt.status.as_str(), receipt.method.as_str()), ("success", "zchannel"));
+    let fwd: Vec<String> = serde_json::from_value(pm.body["headers"].clone()).unwrap();
+    assert!(!fwd.iter().any(|h| h == "authorization"), "credential not forwarded: {fwd:?}");
+    let echo = ag1.fetch(reqwest::Method::POST, &format!("{D}/api/echo"), Some(b"hello zchan".to_vec()), Protocol::Mpp).await.unwrap();
+    assert_eq!((echo.status, echo.body["echo"].as_str()), (200, Some("hello zchan")));
+    let demo = ag1.fetch(reqwest::Method::GET, &format!("{A}/paid/weather"), None, Protocol::Mpp).await.unwrap();
+    assert_eq!(demo.status, 200);
+    assert!(demo.receipt.is_some());
+    // MPP replay, tampering and malformed credentials stay unpaid.
+    let mpp_cred = |url: String, ag: Arc<Agent>| async move {
+        let r = reqwest::get(&url).await.unwrap();
+        let c = mpp::Challenge::parse(r.headers()["www-authenticate"].to_str().unwrap()).unwrap();
+        let ack = ag.pay_invoice(&c.charge().unwrap().method_details.invoice).await.unwrap();
+        mpp::Credential { challenge: c, source: None, payload: mpp::Payload { ack } }
+    };
+    let problem = |f: &zchan::agent::Fetched| f.body["type"].as_str().unwrap_or("").rsplit('/').next().unwrap_or("").to_string();
+    let cred = mpp_cred(format!("{D}/api/search?q=r"), ag1.clone()).await;
+    let first = ag1.get_with_credential(&format!("{D}/api/search?q=r"), &cred).await.unwrap();
+    assert_eq!(first.status, 200);
+    let again = ag1.get_with_credential(&format!("{D}/api/search?q=r"), &cred).await.unwrap();
+    assert_eq!((again.status, problem(&again).as_str()), (402, "invalid-challenge"));
+    let cred2 = mpp_cred(format!("{D}/api/search?q=t"), ag1.clone()).await;
+    let mut tampered = cred2.clone();
+    tampered.challenge.request = mpp::b64(mpp::jcs(&json!({"amount": "1"})).as_bytes());
+    let t = ag1.get_with_credential(&format!("{D}/api/search?q=t"), &tampered).await.unwrap();
+    assert_eq!((t.status, problem(&t).as_str()), (402, "invalid-challenge"));
+    let other_path = ag1.get_with_credential(&format!("{D}/api/echo"), &cred2).await.unwrap();
+    assert_eq!((other_path.status, problem(&other_path).as_str()), (402, "verification-failed"));
+    let ok2 = ag1.get_with_credential(&format!("{D}/api/search?q=t"), &cred2).await.unwrap();
+    assert_eq!(ok2.status, 200, "the rejected attempts left the invoice unserved");
+    let mal = reqwest::Client::new().get(format!("{D}/api/search")).header("authorization", "Payment !!").send().await.unwrap();
+    let mal_status = mal.status().as_u16();
+    let mal_body: Value = mal.json().await.unwrap();
+    assert_eq!((mal_status, mal_body["type"].as_str().unwrap().ends_with("malformed-credential")), (402, true));
+    // An upstream failure releases the invoice for another try.
+    let boom = ag1.get(&format!("{D}/api/boom")).await.unwrap();
+    assert_eq!(boom.status, 500);
+    let boom_inv = boom.ack.as_ref().unwrap().body.invoice_id.clone();
+    let st: InvoiceRow = web::get(&reqwest::Client::new(), &format!("{D}/invoices/{boom_inv}")).await.unwrap();
+    assert_eq!(st.status, "paid", "released after the upstream 500");
+    // Admin routes need the token on D.
+    let no = reqwest::Client::new().post(format!("{D}/admin/channels/x/close")).send().await.unwrap();
+    assert_eq!(no.status().as_u16(), 401);
+    log.note("proxy + MPP", json!({
+        "free": 200, "x402_proxied": px.body["q"], "mpp_proxied": pm.body["q"], "mpp_receipt": receipt,
+        "mpp_post_echo": echo.body["echo"], "mpp_demo_route": demo.status, "replay": problem(&again),
+        "tampered": problem(&t), "wrong_path": problem(&other_path), "malformed": "malformed-credential",
+        "upstream_500": {"status": boom.status, "invoice_after": st.status}, "admin_without_token": 401,
+    }));
+    reconciled(&mut log, "after proxy and MPP").await;
 
     // ---- Oct 23: duplicate and concurrent retries pay once -------------------------------
     let before = cum(&mchan[A]).await;
@@ -449,13 +549,13 @@ async fn e2e() {
 
     // ---- Oct 22: restart every process; state and refunds recovered ---------------------
     let snap = get(&format!("{SOLVER}/status.json")).await;
-    for s in [&mut solver, &mut ma, &mut mb, &mut mc] {
+    for s in [&mut solver, &mut ma, &mut mb, &mut mc, &mut md] {
         s.kill();
     }
-    for s in [&mut solver, &mut ma, &mut mb, &mut mc] {
+    for s in [&mut solver, &mut ma, &mut mb, &mut mc, &mut md] {
         s.start(&[]);
     }
-    for s in [&solver, &ma, &mb, &mc] {
+    for s in [&solver, &ma, &mb, &mc, &md] {
         s.up().await;
     }
     let after = get(&format!("{SOLVER}/status.json")).await;
@@ -521,6 +621,17 @@ async fn e2e() {
     let c1c = post(&format!("{SOLVER}/admin/channels/{}/close", c1.id), json!({})).await.unwrap();
     let outs_1 = close_outputs(&rt, c1c["txid"].as_str().unwrap()).await;
     assert_eq!(outs_1, vec![level1, 1_000_000 - 10_000 - level1]);
+    let cd = reqwest::Client::new()
+        .post(format!("{D}/admin/channels/{}/close", mchan[D]))
+        .header("x-admin-token", ADMIN)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cd.status().as_u16(), 200, "admin close with the token");
+    let cd: Value = cd.json().await.unwrap();
+    let outs_d = close_outputs(&rt, cd["txid"].as_str().unwrap()).await;
+    let level_d = cum(&mchan[D]).await;
+    assert_eq!(outs_d, vec![level_d, 200_000 - 10_000 - level_d]);
     log.note("transparent closes", json!({"merchant-b": {"txid": cb["txid"], "outputs_zat": outs_b}, "agent-1": {"txid": c1c["txid"], "outputs_zat": outs_1}}));
     reconciled(&mut log, "final").await;
 

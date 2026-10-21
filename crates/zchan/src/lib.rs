@@ -7,13 +7,16 @@
 //! - `store`: SQLite, one file per process.
 //! - `ctx`, `payer`, `payee`: a running party: node access, opening, watching, closing.
 //! - `solver`, `merchant`, `agent`: the three services.
-//! - `x402`: the x402 v2 HTTP types for the `zchannel` scheme.
+//! - `x402`, `mpp`: the x402 v2 and MPP wire formats for the `zchannel` method.
+//! - `gate`: the merchant's payment gate (both protocols) and proxy mode.
 
 pub mod agent;
 pub mod args;
 pub mod channel;
 pub mod ctx;
+pub mod gate;
 pub mod merchant;
+pub mod mpp;
 pub mod payee;
 pub mod payer;
 pub mod solver;

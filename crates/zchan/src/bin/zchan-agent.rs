@@ -5,7 +5,8 @@
 //!                                             (`--network testnet|regtest`: offline, no node)
 //! zchan-agent send ADDRESS ZAT                pay from the deposit (split faucet funds)
 //! zchan-agent open --capacity ZAT --lock-blocks N
-//! zchan-agent get URL                         x402: pay and fetch a resource
+//! zchan-agent get URL [--mpp] [--method M --body B]
+//!                                             pay a 402 (x402 v2, or MPP with --mpp) and fetch
 //! zchan-agent pay-ref INVOICE_URL             pay a checkout invoice by reference
 //! zchan-agent resume                          retry payments left pending
 //! zchan-agent status
@@ -15,7 +16,7 @@
 
 use std::sync::Arc;
 
-use zchan::{agent::Agent, args::Args, ctx::Ctx, store, store::InvoiceRow, web};
+use zchan::{agent::{Agent, Protocol}, args::Args, ctx::Ctx, store, store::InvoiceRow, web};
 
 #[tokio::main]
 async fn main() {
@@ -49,7 +50,10 @@ async fn main() {
         }
         Some("get") => {
             let url = a.positional.first().unwrap_or_else(|| die("get URL"));
-            let f = agent.get(url).await.unwrap_or_else(|e| die(e));
+            let proto = if a.flag("mpp") { Protocol::Mpp } else { Protocol::X402 };
+            let method = reqwest::Method::from_bytes(a.str("method", "GET").as_bytes()).unwrap_or_else(|e| die(e));
+            let body = a.get("body").map(|b| b.as_bytes().to_vec());
+            let f = agent.fetch(method, url, body, proto).await.unwrap_or_else(|e| die(e));
             out(serde_json::to_value(&f).unwrap());
         }
         Some("pay-ref") => {

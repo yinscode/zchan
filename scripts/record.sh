@@ -14,6 +14,7 @@ OUT="${OUT:-$ROOT/video/$NETWORK}"
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 SOLVER="http://127.0.0.1:7100"; A="http://127.0.0.1:7201"
 rm -rf "$OUT"; mkdir -p "$OUT/shots" "$OUT/frames"
+export ZCHAN_ADMIN_TOKEN="${ZCHAN_ADMIN_TOKEN:-$(openssl rand -hex 12)}"
 
 json() { /usr/bin/python3 -c "import json,sys; d=json.load(sys.stdin); print(eval(sys.argv[1]))" "$1"; }
 shot() { perl -e 'alarm shift; exec @ARGV' 45 "$CHROME" --headless=new --disable-gpu --hide-scrollbars --force-dark-mode --window-size="${3:-1280,860}" \
@@ -39,10 +40,10 @@ shot "$A/checkout?invoice=$INV" "$OUT/shots/checkout-paid.png" 520,900
   echo "== settle: A closes to Ironwood, B closes transparently, the solver closes agent channels"
   ID_A=$(curl -s "$SOLVER/status.json" | json '[m["channel_id"] for m in d["merchants"] if m["id"]=="merchant-a"][0]')
   ID_B=$(curl -s "$SOLVER/status.json" | json '[m["channel_id"] for m in d["merchants"] if m["id"]=="merchant-b"][0]')
-  curl -s -X POST "$A/admin/channels/$ID_A/coop-close" | json '"  merchant-a → Ironwood   "+d["txid"]'
-  curl -s -X POST "http://127.0.0.1:7202/admin/channels/$ID_B/close" | json '"  merchant-b transparent  "+d["txid"]'
+  curl -s -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "$A/admin/channels/$ID_A/coop-close" | json '"  merchant-a → Ironwood   "+d["txid"]'
+  curl -s -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "http://127.0.0.1:7202/admin/channels/$ID_B/close" | json '"  merchant-b transparent  "+d["txid"]'
   for id in $(curl -s "$SOLVER/status.json" | json '" ".join(c["id"] for c in d["agent_channels"])'); do
-    curl -s -X POST "$SOLVER/admin/channels/$id/close" | json '"  agent channel           "+d["txid"]'
+    curl -s -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "$SOLVER/admin/channels/$id/close" | json '"  agent channel           "+d["txid"]'
   done
 } | tee "$OUT/close.txt"
 # Wait until every channel has settled on chain (a block or two on testnet).

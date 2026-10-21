@@ -50,6 +50,11 @@ pub struct Config {
     pub invoice_ttl: u64,
     /// Merchant: how long after expiry it still accepts a state for an invoice.
     pub invoice_grace: u64,
+    /// Merchant proxy mode: the service to forward to, and the priced paths.
+    pub upstream: Option<String>,
+    pub routes: Vec<(String, u64)>,
+    /// Required in `X-Admin-Token` on `/admin/*` when set.
+    pub admin_token: Option<String>,
     /// Fault injection for tests: the process exits at this named point.
     pub fault: Option<String>,
 }
@@ -72,6 +77,9 @@ impl Default for Config {
             price: 2_000,
             invoice_ttl: 300,
             invoice_grace: 120,
+            upstream: None,
+            routes: vec![],
+            admin_token: None,
             fault: None,
         }
     }

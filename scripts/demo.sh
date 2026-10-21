@@ -34,6 +34,8 @@ else
   LOCK_MERCHANT=3000; LOCK_AGENT=2000; MARGIN=40
 fi
 mkdir -p "$DATA"
+# Admin routes need this token (required when a service listens beyond localhost).
+export ZCHAN_ADMIN_TOKEN="${ZCHAN_ADMIN_TOKEN:-$(openssl rand -hex 12)}"
 NODE=(--node "$ZCHAN_NODE_URL")
 
 json() { /usr/bin/python3 -c "
@@ -70,8 +72,8 @@ else
 fi
 
 echo "== solver opens a channel to each merchant"
-curl -sf -X POST "$SOLVER/admin/merchants" -H 'content-type: application/json' -d "{\"url\":\"$A\",\"capacity\":200000,\"lock_blocks\":$LOCK_MERCHANT}" | json '"  merchant-a  "+d["channel_id"]'
-curl -sf -X POST "$SOLVER/admin/merchants" -H 'content-type: application/json' -d "{\"url\":\"$B\",\"capacity\":100000,\"lock_blocks\":$LOCK_MERCHANT}" | json '"  merchant-b  "+d["channel_id"]'
+curl -sf -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "$SOLVER/admin/merchants" -H 'content-type: application/json' -d "{\"url\":\"$A\",\"capacity\":200000,\"lock_blocks\":$LOCK_MERCHANT}" | json '"  merchant-a  "+d["channel_id"]'
+curl -sf -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "$SOLVER/admin/merchants" -H 'content-type: application/json' -d "{\"url\":\"$B\",\"capacity\":100000,\"lock_blocks\":$LOCK_MERCHANT}" | json '"  merchant-b  "+d["channel_id"]'
 echo "== each agent opens one channel to the solver"
 agent agent-1 open --capacity 100000 --lock-blocks "$LOCK_AGENT" | json '"  agent-1  "+d["id"]'
 agent agent-2 open --capacity 50000 --lock-blocks "$LOCK_AGENT" | json '"  agent-2  "+d["id"]'
@@ -95,10 +97,10 @@ if [ "${CLOSE:-0}" = 1 ]; then
   echo "== settle: A closes to Ironwood, B closes transparently, the solver closes agent channels"
   ID_A=$(curl -s "$SOLVER/status.json" | json '[m["channel_id"] for m in d["merchants"] if m["id"]=="merchant-a"][0]')
   ID_B=$(curl -s "$SOLVER/status.json" | json '[m["channel_id"] for m in d["merchants"] if m["id"]=="merchant-b"][0]')
-  curl -s -X POST "$A/admin/channels/$ID_A/coop-close" | json '"  merchant-a coop close  "+d["txid"]'
-  curl -s -X POST "$B/admin/channels/$ID_B/close" | json '"  merchant-b close       "+d["txid"]'
+  curl -s -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "$A/admin/channels/$ID_A/coop-close" | json '"  merchant-a coop close  "+d["txid"]'
+  curl -s -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "$B/admin/channels/$ID_B/close" | json '"  merchant-b close       "+d["txid"]'
   for id in $(curl -s "$SOLVER/status.json" | json '" ".join(c["id"] for c in d["agent_channels"])'); do
-    curl -s -X POST "$SOLVER/admin/channels/$id/close" | json '"  agent channel close   "+d["txid"]'
+    curl -s -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "$SOLVER/admin/channels/$id/close" | json '"  agent channel close   "+d["txid"]'
   done
 fi
 echo "done · logs in $DATA"

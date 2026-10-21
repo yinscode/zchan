@@ -83,11 +83,12 @@ Every transition is committed to SQLite before the next message is sent.
 | `zchan::store` | SQLite (WAL, synchronous FULL): channels, append-only states and events, invoices, quotes, payments, credits |
 | `zchan::payer`, `zchan::payee` | opening, funding, refund watching; key slots, refund signing, funding checks, deadline closes |
 | `zchan::solver`, `zchan::merchant`, `zchan::agent` | the three services and the agent library |
-| `zchan::x402` | x402 v2 types for `zchannel` (see `docs/x402-zchannel.md`) |
+| `zchan::x402`, `zchan::mpp` | x402 v2 and MPP wire formats for `zchannel` (`docs/x402-zchannel.md`, `docs/mpp-zchannel.md`) |
+| `zchan::gate` | the merchant's payment gate (one invoice offered over both protocols, served once) and proxy mode |
 
 ## Limits of this build
 
 - Merchant channels are not rotated automatically. A merchant channel near its deadline is closed by the merchant; registering the merchant again (`POST /admin/merchants`) opens a new one.
-- Admin endpoints (`/admin/...`) have no authentication: bind services to localhost.
+- Admin endpoints (`/admin/...`) need `X-Admin-Token` when `--admin-token` is set, and a service refuses to listen beyond localhost without one. Peers are still reached over plain HTTP: put TLS in front of public services.
 - The agent's approval page is protected only by a random path token; on a LAN, anyone with the link can approve payments.
 - Mainnet is refused by the code (`Ctx::new`).
