@@ -231,9 +231,11 @@ async fn admin_coop_close(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>, h
     Ok(Json(json!({"channel": id, "txid": txid})))
 }
 
-/// Closes cooperatively, paying the merchant's share to its Ironwood address: the
-/// merchant builds and proves the transaction, the solver checks its own change and
-/// co-signs, the merchant signs and broadcasts.
+/// Closes cooperatively, paying the merchant's share to its Ironwood address, and the
+/// solver's change to the solver's Ironwood address when it gave one (else to its
+/// transparent address). The merchant builds and proves the transaction, the solver
+/// checks its own change (by decrypting it, when shielded) and co-signs, the merchant
+/// signs and broadcasts.
 pub async fn coop_close(ctx: &Ctx, id: &str) -> Result<String> {
     let lock = ctx.lock(id);
     let _g = lock.lock().await;
@@ -245,14 +247,23 @@ pub async fn coop_close(ctx: &Ctx, id: &str) -> Result<String> {
     let terms = Terms::try_from(&row.terms)?;
     let tip = ctx.tip().await?;
     let change = terms.capacity - terms.state_fee(&ctx.p)? - row.cumulative;
-    let to = ctx.wallet.ironwood_address(0);
+    let to = ctx.wallet.shielded_address(row.idx);
     let mut spec = Spec {
         target_height: tip + 1,
         expiry_height: tip + 40,
         lock_height: None,
         inputs: vec![terms.funding_coin()?],
-        outputs: vec![Pay::Ironwood(to, 1), Pay::Transparent(terms.payer_address, change)],
+        // The payer's change goes to its Ironwood address when it gave one: then nothing
+        // in the close is transparent but the channel input.
+        outputs: vec![
+            Pay::Ironwood(to, 1),
+            match row.peer_ironwood.as_deref().and_then(payee::ironwood_address) {
+                Some(a) => Pay::Ironwood(a, change),
+                None => Pay::Transparent(terms.payer_address, change),
+            },
+        ],
         ironwood_anchor: Some(ctx.node.ironwood_anchor(tip).await?),
+        ironwood_spends: vec![],
     };
     let fee = tx::fee(&ctx.p, &spec)?;
     let mine = terms
@@ -279,7 +290,9 @@ pub async fn coop_close(ctx: &Ctx, id: &str) -> Result<String> {
             r.close_txid = Some(txid.clone());
             r.settled_by = Some("coop-ironwood".into());
         })?;
-        store::event(c, "coop_close_broadcast", json!({"channel": id, "txid": txid, "ironwood_value": mine, "fee": fee}))
+        store::event(c, "coop_close_broadcast", json!({
+            "channel": id, "txid": txid, "ironwood_value": mine, "fee": fee, "both_shielded": row.peer_ironwood.is_some(),
+        }))
     })?;
     ctx.broadcast(&f).await?;
     Ok(txid)

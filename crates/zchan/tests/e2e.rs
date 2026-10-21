@@ -274,11 +274,19 @@ async fn e2e() {
 
     // ---- Oct 22–23: channels -----------------------------------------------------------
     let mut mchan = std::collections::HashMap::new();
-    for (url, cap) in [(A, 2_000_000u64), (B, 40_000), (C, 100_000), (D, 200_000)] {
+    for (url, cap) in [(A, 2_000_000u64), (B, 40_000), (C, 100_000)] {
         let m = post(&format!("{SOLVER}/admin/merchants"), json!({"url": url, "capacity": cap, "lock_blocks": 300})).await.unwrap();
         log.note("solver→merchant channel open", json!({"merchant": m["id"], "channel": m["channel_id"], "capacity": cap}));
         mchan.insert(url, m["channel_id"].as_str().unwrap().to_string());
     }
+    // Privacy: the solver shields its remaining coins and funds D's channel from notes.
+    let sh = post(&format!("{SOLVER}/admin/shield"), json!({})).await.unwrap();
+    let m = post(&format!("{SOLVER}/admin/merchants"), json!({"url": D, "capacity": 200_000, "lock_blocks": 300, "shielded": true})).await.unwrap();
+    mchan.insert(D, m["channel_id"].as_str().unwrap().to_string());
+    let fund_d = rt.node.tx(m["channel_id"].as_str().unwrap().split(':').next().unwrap()).await.unwrap();
+    assert_eq!(fund_d["vin"].as_array().map_or(0, |v| v.len()), 0, "shielded funding has no transparent inputs");
+    assert_eq!(fund_d["vout"][0]["valueZat"], 200_000);
+    log.note("solver→merchant-d channel, shielded funding", json!({"shield_txid": sh["txid"], "channel": m["channel_id"], "transparent_inputs": 0}));
     let (ag1, ag2, ag3) = (agent(&dir, "agent-1").await, agent(&dir, "agent-2").await, agent(&dir, "agent-3").await);
     fund(&rt, &ag1.ctx.deposit_address(), 5_000_000).await;
     fund(&rt, &ag2.ctx.deposit_address(), 1_000_000).await;
@@ -286,6 +294,23 @@ async fn e2e() {
     let c1 = ag1.open(1_000_000, 300).await.unwrap();
     let c2 = ag2.open(200_000, 60).await.unwrap();
     let c3 = ag3.open(100_000, 30).await.unwrap();
+    // Fresh transparent change: agent-1's change went to its channel's own coin address.
+    let w1 = Wallet::dev("agent-1");
+    let dep0 = rt.node.utxos(&ag1.ctx.deposit_address()).await.unwrap();
+    let fresh = rt.node.utxos(&keys::encode(&w1.coin_address(c1.idx), ag1.ctx.net)).await.unwrap();
+    assert!(dep0.is_empty() && fresh.len() == 1, "change at a fresh address: deposit {dep0:?}, fresh {fresh:?}");
+    // Shielded funding: agent-4 shields its coins, then funds its channel from notes.
+    let ag4 = agent(&dir, "agent-4").await;
+    fund(&rt, &ag4.ctx.deposit_address(), 1_000_000).await;
+    let shield4 = ag4.ctx.shield().await.unwrap().expect("coins to shield");
+    let c4 = ag4.open_shielded(200_000, 300).await.unwrap();
+    let f4 = rt.node.tx(c4.id.split(':').next().unwrap()).await.unwrap();
+    assert_eq!(f4["vin"].as_array().map_or(0, |v| v.len()), 0, "no transparent inputs");
+    assert_eq!(f4["vout"].as_array().unwrap().len(), 1, "only the channel output is transparent");
+    log.note("privacy: fresh change, shielded funding", json!({
+        "agent-1_change_address_index": c1.idx, "agent-4_shield_txid": shield4, "agent-4_channel": c4.id,
+        "agent-4_funding_transparent_inputs": 0, "agent-4_funding_transparent_outputs": 1,
+    }));
     for c in [&c1, &c2, &c3] {
         assert!(c.refund.is_some(), "refund stored before funding");
         log.note("agent→solver channel open", json!({"channel": c.id, "capacity": c.terms.capacity, "lock_height": c.terms.lock_height}));
@@ -302,6 +327,8 @@ async fn e2e() {
     assert_eq!(cum(&mchan[A]).await, 4_000, "two agents advanced the same solver→A channel");
     assert_eq!(cum(&c1.id).await, 2_100 + 10_100, "one agent channel paid A and B");
     log.note("shared channel", json!({"solver→A": cum(&mchan[A]).await, "agent-1": cum(&c1.id).await, "agent-2": cum(&c2.id).await, "body": w.body}));
+    let p4 = ag4.fetch(reqwest::Method::GET, &format!("{A}/paid/weather"), None, Protocol::Mpp).await.unwrap();
+    assert_eq!(p4.status, 200, "the shielded-funded channel pays");
     reconciled(&mut log, "after first payments").await;
 
     // ---- Oct 24: x402 negatives -----------------------------------------------------------
@@ -610,10 +637,17 @@ async fn e2e() {
     let outs_a = close_outputs(&rt, &coop_txid).await;
     let pool2 = rt.node.pool_zat("ironwood").await.unwrap();
     let shielded = (pool2 - pool) as u64;
-    assert_eq!(outs_a, vec![2_000_000 - 10_000 - level_a], "only the solver's change is transparent");
-    assert!(shielded > 0 && shielded <= level_a, "merchant share went to Ironwood: {shielded}");
+    assert!(outs_a.is_empty(), "both sides paid to Ironwood: {outs_a:?}");
+    let change_a = 2_000_000 - 10_000 - level_a;
+    let tip = rt.tip().await.unwrap();
+    let solver_notes = zchan_tx::notes::unspent(&rt.node, &Wallet::dev("solver").shielded_fvk(), tip - 3, tip).await.unwrap();
+    assert!(solver_notes.iter().any(|n| n.value() == change_a), "solver received exactly its change, shielded");
+    assert!(shielded > change_a && shielded < 2_000_000, "the whole channel, less the fee, went to Ironwood: {shielded}");
     wait_until("solver sees the coop close", 60, || async { solver_channel(&mchan[A]).await["status"] == "closed" }).await;
-    log.note("cooperative close to Ironwood", json!({"txid": coop_txid, "level": level_a, "transparent_outputs": outs_a, "ironwood_pool_delta": shielded}));
+    log.note("cooperative close, both sides to Ironwood", json!({
+        "txid": coop_txid, "level": level_a, "transparent_outputs": outs_a, "ironwood_pool_delta": shielded,
+        "solver_change_shielded": change_a, "fee": 2_000_000 - shielded,
+    }));
     let cb = post(&format!("{B}/admin/channels/{}/close", mchan[B]), json!({})).await.unwrap();
     let outs_b = close_outputs(&rt, cb["txid"].as_str().unwrap()).await;
     assert_eq!(outs_b, vec![20_000, 40_000 - 10_000 - 20_000]);

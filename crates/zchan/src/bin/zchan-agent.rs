@@ -4,7 +4,10 @@
 //! zchan-agent deposit                         print the address that funds channels
 //!                                             (`--network testnet|regtest`: offline, no node)
 //! zchan-agent send ADDRESS ZAT                pay from the deposit (split faucet funds)
-//! zchan-agent open --capacity ZAT --lock-blocks N
+//! zchan-agent deposit --fresh                 a transparent address no channel has used
+//! zchan-agent shield                          move transparent coins to the shielded account
+//! zchan-agent balance                         transparent and shielded balances
+//! zchan-agent open --capacity ZAT --lock-blocks N [--shielded]
 //! zchan-agent get URL [--mpp] [--method M --body B]
 //!                                             pay a 402 (x402 v2, or MPP with --mpp) and fetch
 //! zchan-agent pay-ref INVOICE_URL             pay a checkout invoice by reference
@@ -40,11 +43,20 @@ async fn main() {
     let agent = Arc::new(Agent::new(ctx.clone(), &solver));
     let out = |v: serde_json::Value| println!("{}", serde_json::to_string_pretty(&v).unwrap());
     match a.command.as_deref() {
+        Some("deposit") if a.flag("fresh") => println!("{}", ctx.fresh_deposit().unwrap_or_else(|e| die(e))),
         Some("deposit") => println!("{}", ctx.deposit_address()),
+        Some("shield") => match ctx.shield().await.unwrap_or_else(|e| die(e)) {
+            Some(txid) => println!("{txid}"),
+            None => die("no confirmed transparent coins to shield"),
+        },
+        Some("balance") => {
+            let t: u64 = ctx.coins().await.unwrap_or_else(|e| die(e)).iter().map(|(c, _)| c.value).sum();
+            let s: u64 = ctx.shielded_notes().await.unwrap_or_else(|e| die(e)).iter().map(|n| n.value()).sum();
+            out(serde_json::json!({"transparent": t, "shielded": s}));
+        }
         Some("open") => {
-            let row = agent
-                .open(a.num("capacity", 1_000_000), a.num("lock-blocks", 2_000))
-                .await
+            let (cap, lock) = (a.num("capacity", 1_000_000), a.num("lock-blocks", 2_000));
+            let row = if a.flag("shielded") { agent.open_shielded(cap, lock).await } else { agent.open(cap, lock).await }
                 .unwrap_or_else(|e| die(e));
             out(serde_json::to_value(&row).unwrap());
         }
@@ -86,7 +98,7 @@ async fn main() {
             let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
             axum::serve(l, zchan::agent::router(agent)).await.unwrap_or_else(|e| die(e));
         }
-        _ => die("command: deposit | open | get | pay-ref | resume | status | watch | serve"),
+        _ => die("command: deposit | shield | balance | send | open | get | pay-ref | resume | status | watch | serve"),
     }
 }
 

@@ -21,17 +21,17 @@ agent-3 ──channel──▶ └────────┘ ──channel─�
 
 | Transaction | Spends → pays | Lock / expiry | Signed |
 |---|---|---|---|
-| Funding | payer coins → P2SH(2-of-2 payer, payee) + change | — / tip + 20 | by the payer, only after it has verified the payee's refund signature and stored the refund |
+| Funding | payer's transparent coins (change to a fresh address) or Ironwood notes (shielded change) → P2SH(2-of-2 payer, payee) | — / tip + 20 | by the payer, only after it has verified the payee's refund signature and stored the refund |
 | Refund | channel → payer, `capacity − 10,000` | `nLockTime = lock_height` / 0 | by both before the funding transaction is signed |
 | State n | channel → payee `C_n`; payer `capacity − 10,000 − C_n` | none / 0 | by the payer; the payee adds its signature at close |
-| Ironwood close | channel → payee's Ironwood address; payer its change as in the latest state | none / tip + 40 | built and proved by the payee, checked and co-signed by the payer |
+| Cooperative close | channel → payee's Ironwood address; payer's change as in the latest state, to the payer's Ironwood address for the channel (or its transparent address) | none / tip + 40 | built and proved by the payee; the payer checks its change (decrypting it when shielded) and co-signs |
 
 - **The refund comes first.** The funding txid is known before anyone signs it, because v5 and later txids do not commit to signatures (ZIP 244). `Payer::fund` refuses to sign funding until the refund signature verifies, and `payer::open` stores the refund before the funding transaction leaves the process.
 - **A state on the wire is just an amount and a signature.** The payee rebuilds the state transaction from the terms (it is deterministic) and verifies the signature against it, so it never inspects a transaction the payer built.
 - **Fixed shape and fee.** A state always has two outputs and the payer keeps at least 5,000 zat (`MIN_CHANGE`). Every state and refund therefore pays 10,000 zat under ZIP 317, and a channel can pay at most `capacity − 15,000`.
 - **Upgrade guard.** Pre-signed transactions commit to a consensus branch ID, so terms whose refund window crosses a network upgrade are refused.
 - **Close deadline.** The payee broadcasts its best state when the tip reaches `lock_height − close_margin`. The payer's watcher broadcasts the refund from `lock_height` if the output is still unspent.
-- **Ironwood close.** It costs 15,000 zat (one more logical action). The merchant pays the difference from its share, and the solver checks only that its own change is exact.
+- **Cooperative close.** Paying both sides to Ironwood costs 20,000 zat (15,000 with a transparent change output). The merchant pays the difference from its share; the solver checks only that its own change is exact, by note commitment and decryption when shielded.
 
 ## A payment
 
@@ -71,7 +71,7 @@ Every transition is committed to SQLite before the next message is sent.
 | Merchant refuses a state it received | **Solver ledger**: agent credited; merchant could still close with the sent state | logged as `exposure` |
 
 - **Not atomic.** Nothing on chain binds the agent's state to the merchant's.
-- **Privacy.** Funding, states and transparent closes reveal amounts and counterparties on chain, and the solver sees which agent paid which merchant. This is not a shielded payment channel. The cooperative close can pay the merchant's share to Ironwood (shielded); funding and the payer's change stay transparent.
+- **Privacy.** Payments are off chain. Channels can be funded from Ironwood notes and closed cooperatively with both sides paid to Ironwood; then the chain shows the capacity and the open and close, not the source of funds or the split. Refunds and unilateral closes stay transparent, and the solver sees which agent paid which merchant. See [privacy.md](privacy.md).
 
 ## Code map
 

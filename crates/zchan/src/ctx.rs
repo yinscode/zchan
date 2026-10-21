@@ -18,7 +18,10 @@ use zchan_tx::{
     wallet::Wallet,
 };
 
-use crate::{store::Store, Error, Result};
+use crate::{
+    store::{self, Store},
+    Error, Result,
+};
 
 /// Zcash testnet's genesis block hash.
 const TESTNET_GENESIS: &str = "05a60a92d99d85997cce3b87616c089f6124d7342af37106edc76126334a2c38";
@@ -147,23 +150,108 @@ impl Ctx {
         crate::wire::pk_hex(&keys::pubkey(&self.identity()))
     }
 
-    /// The address that funds this party's channels (wallet index 0).
+    /// The first transparent deposit address (wallet index 0).
     pub fn deposit_address(&self) -> String {
         keys::encode(&self.wallet.coin_address(0), self.net)
     }
 
-    /// Confirmed coins at the deposit address, with their key.
+    /// Wallet indexes whose transparent coin address this party watches: 0, every
+    /// `deposit --fresh` address, and every channel's change address.
+    pub fn coin_indexes(&self) -> Result<Vec<u32>> {
+        let list = self.store.read(|c| store::meta_get(c, "coin_indexes"))?;
+        Ok(list.and_then(|l| serde_json::from_str(&l).ok()).unwrap_or_else(|| vec![0]))
+    }
+
+    /// Starts watching transparent coin address `i` (inside the caller's transaction).
+    pub fn watch_coin_index(c: &rusqlite::Connection, i: u32) -> Result<()> {
+        let mut list: Vec<u32> = store::meta_get(c, "coin_indexes")?
+            .and_then(|l| serde_json::from_str(&l).ok())
+            .unwrap_or_else(|| vec![0]);
+        if !list.contains(&i) {
+            list.push(i);
+            store::meta_set(c, "coin_indexes", &serde_json::to_string(&list).unwrap())?;
+        }
+        Ok(())
+    }
+
+    /// A transparent deposit address no channel has used.
+    pub fn fresh_deposit(&self) -> Result<String> {
+        let i = self.store.tx(|c| {
+            let i = store::next_index(c)?;
+            Self::watch_coin_index(c, i)?;
+            Ok(i)
+        })?;
+        Ok(keys::encode(&self.wallet.coin_address(i), self.net))
+    }
+
+    /// Confirmed coins at every watched transparent address, with their keys.
     pub async fn coins(&self) -> Result<Vec<(Coin, SecretKey)>> {
-        let sk = self.wallet.coin_key(0);
-        let pk = keys::pubkey(&sk);
-        Ok(self
-            .node
-            .utxos(&self.deposit_address())
-            .await?
-            .into_iter()
-            .filter(|(_, _, _, h)| *h > 0)
-            .map(|(txid, index, value, _)| (Coin { txid, index, value, spend: Spend::P2pkh(pk) }, sk))
-            .collect())
+        let mut out = vec![];
+        for i in self.coin_indexes()? {
+            let sk = self.wallet.coin_key(i);
+            let pk = keys::pubkey(&sk);
+            let addr = keys::encode(&self.wallet.coin_address(i), self.net);
+            for (txid, index, value, h) in self.node.utxos(&addr).await? {
+                if h > 0 {
+                    out.push((Coin { txid, index, value, spend: Spend::P2pkh(pk) }, sk));
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// The height shielded scans start from (set the first time it is asked for).
+    pub async fn shielded_from(&self) -> Result<u32> {
+        if let Some(h) = self.store.read(|c| store::meta_get(c, "shielded_from"))?.and_then(|v| v.parse().ok()) {
+            return Ok(h);
+        }
+        let h = self.tip().await?.saturating_sub(1);
+        self.store.tx(|c| store::meta_set(c, "shielded_from", &h.to_string()))?;
+        Ok(h)
+    }
+
+    /// Unspent, confirmed Ironwood notes of this party's shielded account.
+    pub async fn shielded_notes(&self) -> Result<Vec<zchan_tx::notes::OwnedNote>> {
+        let from = self.shielded_from().await?;
+        let tip = self.tip().await?;
+        Ok(zchan_tx::notes::unspent(&self.node, &self.wallet.shielded_fvk(), from, tip).await?)
+    }
+
+    /// Moves every confirmed transparent coin into the shielded account. Returns the
+    /// display txid, or `None` if there was nothing to move.
+    pub async fn shield(&self) -> Result<Option<String>> {
+        use zchan_tx::tx::{self, Pay, Spec};
+        let coins_lock = self.lock("coins");
+        let _g = coins_lock.lock().await;
+        self.shielded_from().await?;
+        let coins = self.coins().await?;
+        if coins.is_empty() {
+            return Ok(None);
+        }
+        let total: u64 = coins.iter().map(|(c, _)| c.value).sum();
+        let tip = self.tip().await?;
+        let to = self.wallet.shielded_change();
+        let mut spec = Spec {
+            target_height: tip + 1,
+            expiry_height: tip + 40,
+            lock_height: None,
+            inputs: coins.iter().map(|(c, _)| c.clone()).collect(),
+            outputs: vec![Pay::Ironwood(to, 1)],
+            ironwood_anchor: Some(self.node.ironwood_anchor(tip).await?),
+            ironwood_spends: vec![],
+        };
+        let fee = tx::fee(&self.p, &spec)?;
+        let value = total.checked_sub(fee).ok_or_else(|| Error::Funding(format!("coins {total} below the fee {fee}")))?;
+        spec.outputs = vec![Pay::Ironwood(to, value)];
+        let mut pczt = tx::build(&self.p, &spec)?;
+        for (i, (_, sk)) in coins.iter().enumerate() {
+            pczt = tx::sign(pczt, i, sk)?;
+        }
+        let f = tx::extract(pczt)?;
+        let txid = self.broadcast(&f).await?;
+        self.wait_mined(&f).await?;
+        self.store.tx(|c| store::event(c, "shielded", serde_json::json!({"txid": txid, "value": value, "fee": fee})))?;
+        Ok(Some(txid))
     }
 
     pub async fn balance(&self) -> Result<u64> {

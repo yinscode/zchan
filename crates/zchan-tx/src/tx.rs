@@ -8,7 +8,8 @@
 //!
 //! Signatures for the 2-of-2 input come either from a key (`Signer::sign_transparent`)
 //! or from outside (`Signer::append_transparent_signature`): the counterparty's
-//! signature, received as bytes.
+//! signature, received as bytes. Ironwood spends (a note and its Merkle path) are
+//! proved with the outputs and authorized by `sign_ironwood`.
 
 use std::{collections::BTreeMap, convert::Infallible, sync::OnceLock};
 
@@ -76,6 +77,14 @@ impl Coin {
     }
 }
 
+/// An Ironwood note to spend, with its path to `Spec::ironwood_anchor`.
+#[derive(Clone, Debug)]
+pub struct IronwoodSpend {
+    pub fvk: orchard::keys::FullViewingKey,
+    pub note: orchard::Note,
+    pub path: orchard::tree::MerklePath,
+}
+
 #[derive(Clone, Debug)]
 pub enum Pay {
     Transparent(TransparentAddress, u64),
@@ -106,8 +115,9 @@ pub struct Spec {
     pub lock_height: Option<u32>,
     pub inputs: Vec<Coin>,
     pub outputs: Vec<Pay>,
-    /// Required when an output pays Ironwood.
+    /// Required when an output pays or a spend spends Ironwood.
     pub ironwood_anchor: Option<orchard::Anchor>,
+    pub ironwood_spends: Vec<IronwoodSpend>,
 }
 
 fn builder(params: &LocalNetwork, spec: &Spec) -> Result<Builder<LocalNetwork, ()>> {
@@ -132,6 +142,10 @@ fn builder(params: &LocalNetwork, spec: &Spec) -> Result<Builder<LocalNetwork, (
             Spend::P2sh(r) => b.add_transparent_p2sh_input(r.clone(), utxo, coin),
         }
         .map_err(|e| Error::Build(format!("input: {e:?}")))?;
+    }
+    for sp in &spec.ironwood_spends {
+        b.add_ironwood_spend::<Infallible>(sp.fvk.clone(), sp.note, sp.path.clone())
+            .map_err(|e| Error::Build(format!("ironwood spend: {e:?}")))?;
     }
     for o in &spec.outputs {
         match o {
@@ -169,7 +183,8 @@ pub fn fee(params: &LocalNetwork, spec: &Spec) -> Result<u64> {
 /// Outputs must already balance: inputs = outputs + `fee(spec)`.
 pub fn build(params: &LocalNetwork, spec: &Spec) -> Result<Pczt> {
     let need = fee(params, spec)?;
-    let ins: u64 = spec.inputs.iter().map(|c| c.value).sum();
+    let ins: u64 = spec.inputs.iter().map(|c| c.value).sum::<u64>()
+        + spec.ironwood_spends.iter().map(|s| s.note.value().inner()).sum::<u64>();
     let outs: u64 = spec.outputs.iter().map(Pay::value).sum();
     if ins != outs + need {
         return Err(Error::Build(format!(
@@ -192,7 +207,7 @@ pub fn build(params: &LocalNetwork, spec: &Spec) -> Result<Pczt> {
     let pczt = IoFinalizer::new(pczt)
         .finalize_io(rand10::rng())
         .map_err(|e| Error::Pczt(format!("IoFinalizer: {e:?}")))?;
-    if spec.outputs.iter().any(Pay::is_ironwood) {
+    if spec.outputs.iter().any(Pay::is_ironwood) || !spec.ironwood_spends.is_empty() {
         return Ok(Prover::new(pczt)
             .create_ironwood_proof(rand10::rng(), proving_key())
             .map_err(|e| Error::Pczt(format!("Prover: {e:?}")))?
@@ -285,6 +300,20 @@ pub fn append(pczt: Pczt, index: usize, sig: ecdsa::Signature) -> Result<Pczt> {
     s.append_transparent_signature(index, sig)
         .map_err(|e| Error::Pczt(format!("append_transparent_signature: {e:?}")))?;
     Ok(s.finish())
+}
+
+/// Authorizes every Ironwood spend `ask` can sign; returns how many it signed.
+pub fn sign_ironwood(pczt: Pczt, ask: &orchard::keys::SpendAuthorizingKey) -> Result<(Pczt, usize)> {
+    let actions = pczt.ironwood().actions().len();
+    let mut s = Signer::new(pczt).map_err(|e| Error::Pczt(format!("Signer: {e:?}")))?;
+    let mut n = 0;
+    for i in 0..actions {
+        // Dummy spends, and spends of other keys, refuse this key.
+        if s.sign_ironwood(rand10::rng(), i, ask).is_ok() {
+            n += 1;
+        }
+    }
+    Ok((s.finish(), n))
 }
 
 /// A signed v6 transaction.

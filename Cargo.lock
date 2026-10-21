@@ -2904,6 +2904,7 @@ name = "zchan-tx"
 version = "0.0.1"
 dependencies = [
  "hex",
+ "incrementalmerkletree",
  "orchard",
  "pczt",
  "rand 0.10.3",
@@ -2915,6 +2916,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "zcash_address",
+ "zcash_note_encryption",
  "zcash_primitives",
  "zcash_protocol",
  "zcash_script",

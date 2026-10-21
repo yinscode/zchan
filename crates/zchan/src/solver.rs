@@ -20,7 +20,7 @@ use axum::{
 use serde_json::{json, Value};
 
 use crate::{
-    channel::Terms,
+    channel::{ShieldedChange, Terms},
     ctx::Ctx,
     payee, payer,
     store::{self, MerchantRow, Payment},
@@ -44,6 +44,7 @@ pub fn router(ctx: Arc<Ctx>) -> Router {
         .route("/channels/{id}/coop-close", post(coop_close))
         .route("/admin/merchants", post(add_merchant))
         .route("/admin/channels/{id}/close", post(admin_close))
+        .route("/admin/shield", post(admin_shield))
         .route("/status", get(status_html))
         .route("/status.json", get(status_json))
         .with_state(ctx)
@@ -77,6 +78,14 @@ async fn info(State(ctx): State<Arc<Ctx>>) -> Json<Info> {
     })
 }
 
+/// Moves the solver's transparent coins into its shielded account, so later channels can
+/// be funded with `shielded: true`.
+async fn admin_shield(State(ctx): State<Arc<Ctx>>, headers: HeaderMap) -> ApiResult<Json<Value>> {
+    crate::gate::admin(&ctx, &headers)?;
+    let txid = ctx.shield().await?;
+    Ok(Json(json!({"txid": txid})))
+}
+
 /// Closes an agent channel now with its best state (end-of-day settlement).
 async fn admin_close(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>, headers: HeaderMap) -> ApiResult<Json<Value>> {
     crate::gate::admin(&ctx, &headers)?;
@@ -89,6 +98,9 @@ struct AddMerchantReq {
     url: String,
     capacity: u64,
     lock_blocks: u32,
+    /// Fund the channel from the solver's Ironwood notes.
+    #[serde(default)]
+    shielded: bool,
 }
 
 /// Registers a merchant and opens the solver's channel to it.
@@ -107,7 +119,7 @@ async fn add_merchant(State(ctx): State<Arc<Ctx>>, headers: HeaderMap, Json(req)
             return Err(err(StatusCode::CONFLICT, format!("merchant {} has an open channel", i.id)));
         }
     }
-    let ch = payer::open(&ctx, &url, req.capacity, req.lock_blocks).await?;
+    let ch = payer::open(&ctx, &url, req.capacity, req.lock_blocks, req.shielded).await?;
     let m = MerchantRow { id: i.id.clone(), url, pubkey: i.pubkey, channel_id: ch.id.clone() };
     ctx.store.tx(|c| {
         store::merchant_put(c, &m)?;
@@ -438,13 +450,25 @@ async fn coop_close(
     let bytes = hex::decode(&req.pczt).map_err(|e| err(StatusCode::BAD_REQUEST, format!("pczt hex: {e}")))?;
     let pczt = pczt::Pczt::parse(&bytes).map_err(|e| err(StatusCode::BAD_REQUEST, format!("pczt: {e:?}")))?;
     let terms = Terms::try_from(&row.terms)?;
-    let sig = terms.sign_coop_close(&ctx.p, &ctx.wallet.channel_key(row.idx), &pczt, row.cumulative)?;
+    // A close with no transparent outputs pays the solver's change to its Ironwood
+    // address for this channel; the solver checks that by decrypting it.
+    let shielded_close = pczt
+        .clone()
+        .into_effects()
+        .ok()
+        .and_then(|fx| fx.transparent_bundle().map(|t| t.vout.is_empty()))
+        .unwrap_or(false);
+    let change = shielded_close.then(|| ShieldedChange {
+        address: ctx.wallet.shielded_address(row.idx),
+        ivk: ctx.wallet.shielded_ivk(),
+    });
+    let sig = terms.sign_coop_close(&ctx.p, &ctx.wallet.channel_key(row.idx), &pczt, row.cumulative, change.as_ref())?;
     ctx.store.tx(|c| {
         store::channel_update(c, &id, |r| {
             r.status = "closing".into();
             r.settled_by = Some("coop-ironwood".into());
         })?;
-        store::event(c, "coop_close_signed", json!({"channel": id, "cumulative": row.cumulative}))
+        store::event(c, "coop_close_signed", json!({"channel": id, "cumulative": row.cumulative, "both_shielded": shielded_close}))
     })?;
     Ok(Json(CoopCloseResp { sig: sig_hex(&sig) }))
 }

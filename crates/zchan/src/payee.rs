@@ -64,6 +64,11 @@ async fn propose(State(ctx): State<Arc<Ctx>>, Json(req): Json<ProposeReq>) -> Ap
     if ctx.store.read(|c| store::channel_get(c, &id))?.is_some() {
         return Err(err(StatusCode::CONFLICT, format!("channel {id} exists")));
     }
+    if let Some(a) = &req.payer_ironwood {
+        if ironwood_address(a).is_none() {
+            return Err(err(StatusCode::BAD_REQUEST, "payer_ironwood is not an Ironwood address"));
+        }
+    }
     let sig = terms.sign_refund(&ctx.p, &sk)?;
     let row = ChannelRow {
         id: id.clone(),
@@ -80,6 +85,7 @@ async fn propose(State(ctx): State<Arc<Ctx>>, Json(req): Json<ProposeReq>) -> Ap
         close_txid: None,
         funding_height: None,
         settled_by: None,
+        peer_ironwood: req.payer_ironwood.clone(),
     };
     ctx.store.tx(|c| {
         store::channel_put(c, &row)?;
@@ -112,6 +118,12 @@ async fn funded(State(ctx): State<Arc<Ctx>>, Path(id): Path<String>) -> ApiResul
         store::event(c, "channel_open", json!({"channel": id, "role": "payee", "height": h}))
     })?;
     Ok(Json(FundedResp { channel_id: id, height: h }))
+}
+
+/// Parses a raw Ironwood address (43 bytes, hex).
+pub fn ironwood_address(hex_raw: &str) -> Option<orchard::Address> {
+    let b: [u8; 43] = hex::decode(hex_raw).ok()?.try_into().ok()?;
+    Option::from(orchard::Address::from_raw_address_bytes(&b))
 }
 
 /// Verifies a state for an open payee channel: above the one held, within capacity,

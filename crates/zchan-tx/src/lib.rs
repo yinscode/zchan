@@ -2,11 +2,13 @@
 //!
 //! Every transaction is v6, built through the `pczt` roles: a 2-of-2 P2SH output, spends
 //! of it signed by one key or completed with a signature made elsewhere, a refund locked
-//! to a height, and outputs that may pay Ironwood. Plus a Zakura JSON-RPC client, the
-//! network parameters, a seed wallet, a refund watcher and regtest helpers.
+//! to a height, and Ironwood spends and outputs. Plus an Ironwood note scanner, a Zakura
+//! JSON-RPC client, the network parameters, a seed wallet, a refund watcher and regtest
+//! helpers.
 
 pub mod keys;
 pub mod node;
+pub mod notes;
 pub mod params;
 pub mod regtest;
 pub mod script;

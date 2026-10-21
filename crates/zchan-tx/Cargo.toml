@@ -15,8 +15,10 @@ zcash_protocol = { version = "=0.11.0-pre.0", features = ["local-consensus"] }
 zcash_address = "=0.14.0-pre.1"
 zcash_script = { version = "0.6", default-features = false }
 pczt = { version = "=0.10.0-pre.1", features = ["orchard", "transparent", "io-finalizer", "prover", "signer", "spend-finalizer", "tx-extractor", "zcp-builder"] }
-# Ironwood outputs (a shielded cooperative close).
+# Ironwood: shielded funding, shielded cooperative closes, note scanning and witnesses.
 orchard = { version = "=0.16.0", features = ["circuit"] }
+zcash_note_encryption = "=0.5.1"
+incrementalmerkletree = "=0.9.0"
 # secp256k1 0.33 is what pczt and zcash_transparent sign with.
 secp256k1 = { version = "0.33", features = ["alloc"] }
 sha2 = "0.10"

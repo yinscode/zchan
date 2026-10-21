@@ -80,7 +80,12 @@ impl Agent {
     }
 
     pub async fn open(&self, capacity: u64, lock_blocks: u32) -> Result<ChannelRow> {
-        payer::open(&self.ctx, &self.solver, capacity, lock_blocks).await
+        payer::open(&self.ctx, &self.solver, capacity, lock_blocks, false).await
+    }
+
+    /// Opens a channel funded from the agent's shielded notes.
+    pub async fn open_shielded(&self, capacity: u64, lock_blocks: u32) -> Result<ChannelRow> {
+        payer::open(&self.ctx, &self.solver, capacity, lock_blocks, true).await
     }
 
     /// The newest open channel to this agent's solver.

@@ -94,6 +94,7 @@ impl Regtest {
             }],
             outputs: outs,
             ironwood_anchor: None,
+            ironwood_spends: vec![],
         };
         let fee = tx::fee(&self.p, &spec)?;
         let paid: u64 = outputs.iter().map(|(_, v)| v).sum();

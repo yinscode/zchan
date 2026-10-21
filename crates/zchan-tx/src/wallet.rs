@@ -82,4 +82,24 @@ impl Wallet {
     pub fn ironwood_address(&self, i: u32) -> orchard::Address {
         self.ironwood_fvk(i).address_at(0u32, Scope::External)
     }
+
+    /// The party's shielded account: every Ironwood address below belongs to it.
+    pub fn shielded_fvk(&self) -> FullViewingKey {
+        self.ironwood_fvk(0)
+    }
+
+    /// A distinct Ironwood address for channel `i` (a diversified address of the
+    /// shielded account), so two channels' shielded closes do not share a receiver.
+    pub fn shielded_address(&self, i: u32) -> orchard::Address {
+        self.shielded_fvk().address_at(i, Scope::External)
+    }
+
+    /// Where shielded change goes (the account's internal address).
+    pub fn shielded_change(&self) -> orchard::Address {
+        self.shielded_fvk().address_at(0u32, Scope::Internal)
+    }
+
+    pub fn shielded_ivk(&self) -> orchard::keys::PreparedIncomingViewingKey {
+        orchard::keys::PreparedIncomingViewingKey::new(&self.shielded_fvk().to_ivk(Scope::External))
+    }
 }

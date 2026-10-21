@@ -53,6 +53,9 @@ pub struct ChannelRow {
     pub funding_height: Option<u32>,
     /// How the channel ended: `close`, `refund`, or `coop-ironwood`.
     pub settled_by: Option<String>,
+    /// Payee: the payer's Ironwood address for a shielded cooperative close (raw, hex).
+    #[serde(default)]
+    pub peer_ironwood: Option<String>,
 }
 
 /// A payment as the solver (or the agent) tracks it.

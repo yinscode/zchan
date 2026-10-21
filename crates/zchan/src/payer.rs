@@ -6,7 +6,7 @@ use serde_json::json;
 use zchan_tx::{txid_hex, watch::{Kit, Status}};
 
 use crate::{
-    channel::{Payer, Terms},
+    channel::{Funding, Payer, Terms},
     ctx::Ctx,
     store::{self, ChannelRow},
     web,
@@ -29,6 +29,10 @@ pub struct ProposeReq {
     pub terms: TermsWire,
     pub payer_url: String,
     pub payer_id: String,
+    /// The payer's Ironwood address for this channel (raw, hex): a cooperative close may
+    /// pay the payer's change there instead of to `terms.payer_address`.
+    #[serde(default)]
+    pub payer_ironwood: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -42,9 +46,11 @@ pub struct FundedResp {
     pub height: u32,
 }
 
-/// Opens a channel to `payee_url` funded from this party's deposit coins, and waits until
-/// the payee has seen the funding confirm.
-pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32) -> Result<ChannelRow> {
+/// Opens a channel to `payee_url` and waits until the payee has seen the funding confirm.
+/// With `shielded`, the funding spends this party's Ironwood notes (no transparent
+/// inputs); otherwise its transparent coins, fewest first, with change to a fresh
+/// address that no other channel uses.
+pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32, shielded: bool) -> Result<ChannelRow> {
     let coins_lock = ctx.lock("coins");
     let _g = coins_lock.lock().await;
     let key: KeySlot = web::get(&ctx.http, &format!("{payee_url}/channels/key")).await?;
@@ -52,13 +58,37 @@ pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32) -
     let payee_address = addr_from_str(&key.address)?;
     let idx = ctx.store.tx(store::next_index)?;
     let sk = ctx.wallet.channel_key(idx);
-    let coins = ctx.coins().await?;
-    if coins.is_empty() {
-        return Err(Error::Funding(format!("no confirmed coins at {}", ctx.deposit_address())));
-    }
     let tip = ctx.tip().await?;
     let target = tip + 1;
-    let pr = Payer::propose(
+    // Covers the channel, a generous fee and change.
+    let need = capacity + 40_000 + crate::channel::MIN_CHANGE;
+    let funding = if shielded {
+        let notes = ctx.shielded_notes().await?;
+        let have: u64 = notes.iter().map(|n| n.value()).sum();
+        let pick = zchan_tx::notes::select(notes, need)
+            .ok_or_else(|| Error::Funding(format!("shielded balance {have} cannot fund {capacity}")))?;
+        let (spends, anchor) = zchan_tx::notes::spends(&ctx.node, &ctx.wallet.shielded_fvk(), &pick, tip).await?;
+        Funding::Shielded { spends, anchor, sk: ctx.wallet.ironwood_sk(0), change: ctx.wallet.shielded_change() }
+    } else {
+        let mut coins = ctx.coins().await?;
+        coins.sort_by_key(|(c, _)| std::cmp::Reverse(c.value));
+        let mut pick = vec![];
+        let mut got = 0;
+        for c in coins {
+            if got >= need {
+                break;
+            }
+            got += c.0.value;
+            pick.push(c);
+        }
+        if got < need {
+            return Err(Error::Funding(format!("transparent coins hold {got}; {capacity} needs about {need}")));
+        }
+        // Change goes to this channel's own coin address, watched from now on.
+        ctx.store.tx(|c| Ctx::watch_coin_index(c, idx))?;
+        Funding::Transparent { coins: pick, change: ctx.wallet.coin_address(idx) }
+    };
+    let pr = Payer::propose_with(
         &ctx.p,
         &sk,
         payee,
@@ -67,8 +97,7 @@ pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32) -
         capacity,
         target,
         target + lock_blocks,
-        coins,
-        ctx.wallet.coin_address(0),
+        funding,
     )?;
     let terms = pr.terms.clone();
     let req = ProposeReq {
@@ -76,6 +105,7 @@ pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32) -
         terms: (&terms).into(),
         payer_url: ctx.cfg.base_url.clone(),
         payer_id: ctx.cfg.name.clone(),
+        payer_ironwood: Some(hex::encode(ctx.wallet.shielded_address(idx).to_raw_address_bytes())),
     };
     let resp: ProposeResp = web::post(&ctx.http, &format!("{payee_url}/channels/propose"), &req).await?;
     let (_, refund, funding) = Payer::fund(&ctx.p, pr, &sk, &sig_from_hex(&resp.refund_sig)?)?;
@@ -97,12 +127,13 @@ pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32) -
         close_txid: None,
         funding_height: None,
         settled_by: None,
+        peer_ironwood: None,
     };
     // The refund is durable before the funding transaction leaves this process.
     ctx.store.tx(|c| {
         store::channel_put(c, &row)?;
         store::event(c, "channel_funding", json!({
-            "channel": id, "role": "payer", "peer": key.payee_id, "capacity": capacity,
+            "channel": id, "role": "payer", "peer": key.payee_id, "capacity": capacity, "shielded_funding": shielded,
             "lock_height": terms.lock_height, "refund_txid": txid_hex(&refund.txid),
         }))
     })?;
@@ -139,7 +170,12 @@ pub async fn send(ctx: &Ctx, to: zcash_transparent::address::TransparentAddress,
     let _g = coins_lock.lock().await;
     let coins = ctx.coins().await?;
     let total: u64 = coins.iter().map(|(c, _)| c.value).sum();
-    let change = ctx.wallet.coin_address(0);
+    let ci = ctx.store.tx(|c| {
+        let i = store::next_index(c)?;
+        Ctx::watch_coin_index(c, i)?;
+        Ok(i)
+    })?;
+    let change = ctx.wallet.coin_address(ci);
     let tip = ctx.tip().await?;
     let mut spec = Spec {
         target_height: tip + 1,
@@ -148,6 +184,7 @@ pub async fn send(ctx: &Ctx, to: zcash_transparent::address::TransparentAddress,
         inputs: coins.iter().map(|(c, _)| c.clone()).collect(),
         outputs: vec![Pay::Transparent(to, amount), Pay::Transparent(change, 1)],
         ironwood_anchor: None,
+        ironwood_spends: vec![],
     };
     let fee = tx::fee(&ctx.p, &spec)?;
     let left = total

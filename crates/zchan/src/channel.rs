@@ -11,8 +11,10 @@
 //! so it never inspects a transaction the payer built. The payee keeps the highest state
 //! and broadcasts it, with its own signature, before `lock_height`.
 //!
-//! Every transaction here is transparent-only with a fixed shape (one input; one output
-//! for the refund, two for a state), so its fee is fixed by the terms.
+//! Refunds and states are transparent-only with a fixed shape (one input; one output for
+//! the refund, two for a state), so their fee is fixed by the terms. Funding may come
+//! from Ironwood notes (`Funding::Shielded`), and a cooperative close may pay both sides
+//! to Ironwood (`check_coop_close` with a `ShieldedChange`).
 
 use secp256k1::{ecdsa::Signature, Message, PublicKey, SecretKey};
 use zcash_protocol::local_consensus::LocalNetwork;
@@ -22,11 +24,18 @@ use zchan_tx::{
     keys,
     node::Node,
     params, script,
-    tx::{self, Coin, Final, Pay, Spec, Spend},
+    tx::{self, Coin, Final, IronwoodSpend, Pay, Spec, Spend},
     txid_hex,
 };
 
 use crate::{Error, Result};
+
+/// The payer's Ironwood address for a shielded cooperative close, and the key that
+/// decrypts what is paid to it.
+pub struct ShieldedChange {
+    pub address: orchard::Address,
+    pub ivk: orchard::keys::PreparedIncomingViewingKey,
+}
 
 /// The payer's change in a state never goes below this: one ZIP 317 marginal fee, well
 /// above any relay dust rule. It keeps every state the same two-output shape.
@@ -110,6 +119,7 @@ impl Terms {
                 Pay::Transparent(self.payer_address, 1),
             ],
             ironwood_anchor: None,
+            ironwood_spends: vec![],
         };
         Ok(tx::fee(p, &spec)?)
     }
@@ -130,6 +140,7 @@ impl Terms {
             inputs: vec![self.funding_coin()?],
             outputs: vec![Pay::Transparent(self.payer_address, 1)],
             ironwood_anchor: None,
+            ironwood_spends: vec![],
         };
         let fee = tx::fee(p, &spec)?;
         spec.outputs[0] = Pay::Transparent(self.payer_address, self.capacity - fee);
@@ -153,6 +164,7 @@ impl Terms {
                 Pay::Transparent(self.payer_address, self.capacity - fee - cumulative),
             ],
             ironwood_anchor: None,
+            ironwood_spends: vec![],
         })
     }
 
@@ -192,11 +204,12 @@ impl Terms {
         Ok(tx::extract(tx::sign(pczt, 0, payee_sk)?)?)
     }
 
-    /// The payer's check of a cooperative close that the payee built (to pay itself to
-    /// Ironwood): it spends only this channel's output, has no other pools, and pays the
-    /// payer exactly its change in state `cumulative`. The rest, and any extra fee, is the
-    /// payee's share.
-    pub fn check_coop_close(&self, p: &LocalNetwork, pczt: &pczt::Pczt, cumulative: u64) -> Result<()> {
+    /// The payer's check of a cooperative close that the payee built: it spends only this
+    /// channel's output, has no other pools, and pays the payer exactly its change in
+    /// state `cumulative`, either transparently to `payer_address` or, with `shielded`,
+    /// as an Ironwood note to the payer's address that the payer's key decrypts (and then
+    /// nothing transparently). The rest, and any extra fee, is the payee's share.
+    pub fn check_coop_close(&self, p: &LocalNetwork, pczt: &pczt::Pczt, cumulative: u64, shielded: Option<&ShieldedChange>) -> Result<()> {
         let bad = |m: &str| Error::State(format!("coop close: {m}"));
         let fx = pczt
             .clone()
@@ -215,17 +228,64 @@ impl Terms {
             return Err(bad(&format!("{cumulative} outside 1..={max}")));
         }
         let change = self.capacity - self.state_fee(p)? - cumulative;
-        let want: zcash_transparent::address::Script = self.payer_address.script().into();
-        if t.vout.len() != 1 || u64::from(t.vout[0].value()) != change || *t.vout[0].script_pubkey() != want {
-            return Err(bad(&format!("must pay the payer exactly {change} and nothing else transparently")));
+        let Some(sh) = shielded else {
+            let want: zcash_transparent::address::Script = self.payer_address.script().into();
+            if t.vout.len() != 1 || u64::from(t.vout[0].value()) != change || *t.vout[0].script_pubkey() != want {
+                return Err(bad(&format!("must pay the payer exactly {change} and nothing else transparently")));
+            }
+            return Ok(());
+        };
+        if !t.vout.is_empty() {
+            return Err(bad("a shielded close pays nothing transparently"));
+        }
+        let mine = sh.address.to_raw_address_bytes();
+        let mut paid = 0u64;
+        let mut problem: Option<String> = None;
+        pczt::roles::verifier::Verifier::new(pczt.clone())
+            .with_ironwood::<std::convert::Infallible, _>(|b| {
+                let version = *b.bundle_version();
+                for a in b.actions() {
+                    let out = a.output();
+                    if let (Some(r), Some(v)) = (out.recipient(), out.value()) {
+                        if r.to_raw_address_bytes() != mine || v.inner() == 0 {
+                            continue;
+                        }
+                        if out.verify_note_commitment(a.spend()).is_err() {
+                            problem = Some("the payer's output does not match its commitment".into());
+                            return Ok(());
+                        }
+                        match a.decrypt_output_with_ivk(&sh.ivk, version) {
+                            Ok(Some((note, _, _))) if note.value().inner() == v.inner() => paid += v.inner(),
+                            _ => {
+                                problem = Some("the payer's output does not decrypt with its key".into());
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            })
+            .map_err(|e| bad(&format!("ironwood: {e:?}")))?;
+        if let Some(m) = problem {
+            return Err(bad(&m));
+        }
+        if paid != change {
+            return Err(bad(&format!("pays the payer {paid} shielded, not {change}")));
         }
         Ok(())
     }
 
     /// The payer's signature on a cooperative close that passes `check_coop_close`.
-    pub fn sign_coop_close(&self, p: &LocalNetwork, payer_sk: &SecretKey, pczt: &pczt::Pczt, cumulative: u64) -> Result<Signature> {
+    pub fn sign_coop_close(
+        &self,
+        p: &LocalNetwork,
+        payer_sk: &SecretKey,
+        pczt: &pczt::Pczt,
+        cumulative: u64,
+        shielded: Option<&ShieldedChange>,
+    ) -> Result<Signature> {
         own(payer_sk, &self.payer, "payer")?;
-        self.check_coop_close(p, pczt, cumulative)?;
+        self.check_coop_close(p, pczt, cumulative, shielded)?;
         Ok(sign(tx::sighash(pczt, 0)?, payer_sk))
     }
 
@@ -276,15 +336,31 @@ pub struct Payer {
     pub paid: u64,
 }
 
+/// What funds a channel.
+pub enum Funding {
+    /// P2PKH coins with their keys; change to a transparent address.
+    Transparent { coins: Vec<(Coin, SecretKey)>, change: TransparentAddress },
+    /// Ironwood notes (spends against `anchor`) with the account's spending key; change
+    /// to an Ironwood address. The funding transaction has no transparent inputs, so
+    /// nothing on chain links the channel to where its money came from.
+    Shielded {
+        spends: Vec<IronwoodSpend>,
+        anchor: orchard::Anchor,
+        sk: orchard::keys::SpendingKey,
+        change: orchard::Address,
+    },
+}
+
 /// What the payer proposes: the terms, and the unsigned funding transaction they name.
 pub struct Proposal {
     pub terms: Terms,
     funding: pczt::Pczt,
     inputs: Vec<SecretKey>,
+    shielded: Option<(orchard::keys::SpendingKey, usize)>,
 }
 
 impl Payer {
-    /// Builds the unsigned funding transaction (P2PKH coins → channel output + change)
+    /// Builds the unsigned funding transaction from P2PKH coins (channel output + change)
     /// and the terms naming its output. Nothing is signed yet.
     #[allow(clippy::too_many_arguments)]
     pub fn propose(
@@ -299,24 +375,70 @@ impl Payer {
         coins: Vec<(Coin, SecretKey)>,
         change: TransparentAddress,
     ) -> Result<Proposal> {
+        Self::propose_with(
+            p,
+            payer_sk,
+            payee,
+            payee_address,
+            payer_address,
+            capacity,
+            target_height,
+            lock_height,
+            Funding::Transparent { coins, change },
+        )
+    }
+
+    /// Builds the unsigned funding transaction from `funding` and the terms naming its
+    /// output (always transparent output 0). Nothing is signed yet.
+    #[allow(clippy::too_many_arguments)]
+    pub fn propose_with(
+        p: &LocalNetwork,
+        payer_sk: &SecretKey,
+        payee: PublicKey,
+        payee_address: TransparentAddress,
+        payer_address: TransparentAddress,
+        capacity: u64,
+        target_height: u32,
+        lock_height: u32,
+        funding: Funding,
+    ) -> Result<Proposal> {
         let payer = keys::pubkey(payer_sk);
         let address = script::p2sh(&script::multisig_2of2(&payer, &payee)?);
-        let (inputs, input_keys): (Vec<Coin>, Vec<SecretKey>) = coins.into_iter().unzip();
-        let total: u64 = inputs.iter().map(|c| c.value).sum();
         let mut spec = Spec {
             target_height,
             expiry_height: target_height + 20,
             lock_height: None,
-            inputs,
-            outputs: vec![Pay::Transparent(address, capacity), Pay::Transparent(change, 1)],
+            inputs: vec![],
+            outputs: vec![Pay::Transparent(address, capacity)],
             ironwood_anchor: None,
+            ironwood_spends: vec![],
         };
+        let (input_keys, shielded, total, change) = match funding {
+            Funding::Transparent { coins, change } => {
+                let (inputs, keys): (Vec<Coin>, Vec<SecretKey>) = coins.into_iter().unzip();
+                let total = inputs.iter().map(|c| c.value).sum::<u64>();
+                spec.inputs = inputs;
+                (keys, None, total, Pay::Transparent(change, 1))
+            }
+            Funding::Shielded { spends, anchor, sk, change } => {
+                let total = spends.iter().map(|s| s.note.value().inner()).sum::<u64>();
+                let n = spends.len();
+                spec.ironwood_spends = spends;
+                spec.ironwood_anchor = Some(anchor);
+                (vec![], Some((sk, n)), total, Pay::Ironwood(change, 1))
+            }
+        };
+        spec.outputs.push(change.clone());
         let fee = tx::fee(p, &spec)?;
         let left = total
             .checked_sub(capacity + fee)
             .filter(|l| *l >= MIN_CHANGE)
-            .ok_or_else(|| Error::Funding(format!("coins {total} cannot fund {capacity} + fee {fee} + change")))?;
-        spec.outputs[1] = Pay::Transparent(change, left);
+            .ok_or_else(|| Error::Funding(format!("funds {total} cannot cover {capacity} + fee {fee} + change")))?;
+        spec.outputs[1] = match change {
+            Pay::Transparent(a, _) => Pay::Transparent(a, left),
+            Pay::Ironwood(a, _) => Pay::Ironwood(a, left),
+            other => other,
+        };
         let funding = tx::build(p, &spec)?;
         let terms = Terms {
             payer,
@@ -330,7 +452,7 @@ impl Payer {
             payee_address,
         };
         terms.check(p)?;
-        Ok(Proposal { terms, funding, inputs: input_keys })
+        Ok(Proposal { terms, funding, inputs: input_keys, shielded })
     }
 
     /// Verifies the payee's refund signature, completes the refund, and only then signs
@@ -342,7 +464,7 @@ impl Payer {
         payer_sk: &SecretKey,
         refund_sig: &Signature,
     ) -> Result<(Payer, Final, Final)> {
-        let Proposal { terms, funding, inputs } = proposal;
+        let Proposal { terms, funding, inputs, shielded } = proposal;
         own(payer_sk, &terms.payer, "payer")?;
         terms.verify_refund(p, refund_sig)?;
         let refund = tx::append(tx::build(p, &terms.refund_spec(p)?)?, 0, *refund_sig)?;
@@ -350,6 +472,13 @@ impl Payer {
         let mut funding = funding;
         for (i, sk) in inputs.iter().enumerate() {
             funding = tx::sign(funding, i, sk)?;
+        }
+        if let Some((sk, n)) = shielded {
+            let (signed, got) = tx::sign_ironwood(funding, &orchard::keys::SpendAuthorizingKey::from(&sk))?;
+            if got != n {
+                return Err(Error::Funding(format!("signed {got} of {n} Ironwood spends")));
+            }
+            funding = signed;
         }
         let funding = tx::extract(funding)?;
         if funding.txid != terms.funding_txid {

@@ -7,7 +7,7 @@ agent-1 ──channel──▶ ┌────────┐ ──channel─�
 agent-2 ──channel──▶ │ solver │ ──channel──▶ merchant-b
 ```
 
-Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2SH 2-of-2 output. Its time-locked refund is signed by both sides before the funding transaction is signed. Closes are enforced by the chain; the solver is trusted with one payment per agent at a time; the two legs are not atomic. Read [docs/design.md](docs/design.md) for the flow and the full trust model.
+Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2SH 2-of-2 output. Its time-locked refund is signed by both sides before the funding transaction is signed. Closes are enforced by the chain; the solver is trusted with one payment per agent at a time; the two legs are not atomic. Funded from Ironwood notes and closed cooperatively, a channel shows the chain only its capacity and its open and close ([docs/privacy.md](docs/privacy.md)). Read [docs/design.md](docs/design.md) for the flow and the full trust model.
 
 ## Status
 
@@ -19,7 +19,7 @@ Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2S
 | MPP `zchannel` charge (`WWW-Authenticate: Payment`) | regtest e2e: paid once; replayed, tampered, wrong-path and malformed credentials stay unpaid |
 | Proxy mode (gate any HTTP API) | testnet run (x402 + MPP through the proxy) and regtest e2e: free paths pass through; priced paths paid over either protocol; payment headers not forwarded; an upstream failure releases the invoice |
 | QR checkout and phone approval page | regtest e2e: altered, wrong-merchant, expired and reused invoices fail |
-| Cooperative close to Ironwood (shielded merchant payout) | regtest e2e |
+| Privacy: shielded funding from Ironwood notes, cooperative close paying both sides to Ironwood, fresh change per channel ([docs/privacy.md](docs/privacy.md)) | regtest e2e; an Ironwood close also on testnet |
 | Testnet run | **done** October 21, 2026: channels, x402 and QR payments, Ironwood and transparent closes, a refund ([docs/testnet.md](docs/testnet.md)) |
 | Demo video | `scripts/record.sh` records it from a live run (testnet and regtest cuts made) |
 | Mainnet | refused by the code |
@@ -100,7 +100,7 @@ The two regtest suites each need a fresh chain. The e2e test runs the real `zcha
 |---|---|
 | `zchan-solver` | payee of agent channels, payer of merchant channels; `/quote`, `/pay`, `/status`, `/admin/merchants` |
 | `zchan-merchant` | payee of the solver's channel; x402 routes `/paid/{resource}`, `/checkout`, `/invoices/{id}` |
-| `zchan-agent` | `deposit`, `open`, `get URL` (x402), `pay-ref`, `resume`, `status`, `watch`, `serve` (approval page) |
+| `zchan-agent` | `deposit [--fresh]`, `shield`, `balance`, `send`, `open [--shielded]`, `get URL [--mpp]`, `pay-ref`, `resume`, `status`, `watch`, `serve` (approval page) |
 | `zchan-dev` | regtest: `fund ADDRESS ZAT`, `mine N`, `tip` |
 
 All take `--data DIR --node URL`, plus `--dev-seed LABEL` on regtest. Without a dev seed, a random seed is written to `DIR/seed`.
