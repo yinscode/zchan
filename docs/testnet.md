@@ -21,6 +21,28 @@ Every channel reconciled on the solver (`reconcile: ok` for all four). Funds cam
 
 Everything that runs on regtest runs on testnet unchanged. Only the node, the funding and the lock lengths differ.
 
+## Shielded funding and a fully shielded cooperative close on testnet (blocks 4,526,560–4,526,579)
+
+The solver and agent-1 moved their transparent coins into their shielded accounts. Each then funded a channel from Ironwood notes, so neither funding transaction has a transparent input. After two payments, merchant-a closed cooperatively with both sides paid to Ironwood: the close spends the channel output and has no transparent outputs. The record is in [spikes/testnet-shielded.json](spikes/testnet-shielded.json).
+
+| Step | Txid | Height | On chain |
+|---|---|---|---|
+| solver shields its coins | `7fa054e841796d0f803b88cfab750b45488fb50e5604a17ab2f9191f5971b5db` | 4,526,563 | 1 transparent input, 0 transparent outputs; 11,240,000 into Ironwood |
+| agent-1 shields its coins | `1b1fe705f771997b687819b07e82569943d84e8add344a1e76efdf0786c262bd` | 4,526,564 | 1 transparent input, 0 transparent outputs; 210,000 into Ironwood |
+| solver → merchant-a channel, funded from notes | `d736ba0888188c4a78d55516ba887b0f7c488ec91909b3d6bc4c7ca9ad62334d` | 4,526,568 | **0 transparent inputs**; channel output 100,000; change 11,130,000 shielded |
+| agent-1 → solver channel, funded from notes | `a1275d7705720b21f47b2627639e0b8b7a1df95c3b0f41b85636425ed0d4bf73` | 4,526,573 | **0 transparent inputs**; channel output 100,000; change 100,000 shielded |
+| Payments: x402 `/paid/weather`, MPP `/paid/news` (20,000 each) | none | — | merchant level 40,000; agent level 40,200 |
+| merchant-a cooperative close, both sides to Ironwood | `c70690f3c6b6c672b952c4159be980634e9be90b61d5ddbe53def7ae33454c85` | 4,526,577 | 1 transparent input (the channel), **0 transparent outputs**; 80,000 into Ironwood (fee 20,000) |
+| agent-1 channel close (by the solver, unilateral) | `39a458cb35b1cf42b5fda7450155e568473c433e832a36806d4d1433ba03d3f8` | 4,526,579 | transparent: 40,200 · 49,800 |
+
+Each party's shielded account, scanned with its own viewing key afterwards, holds the expected notes from the cooperative close:
+- **merchant-a:** a 30,000 zat note (its 40,000 share, less the 10,000 extra fee for the shielded close).
+- **solver:** a 50,000 zat note, exactly its change (100,000 − 10,000 − 40,000). The solver decrypted this output before it co-signed.
+
+Neither amount appears in the close's transparent part. The chain shows only that 80,000 entered Ironwood.
+
+The agent-1 channel was closed by the solver alone, so that close is transparent and shows its split. Agent channels have no cooperative close yet (see [privacy.md](privacy.md)).
+
 ## Proxy mode and MPP on testnet (blocks 4,524,592–4,524,606)
 
 Merchant D ran in proxy mode in front of an existing HTTP API (`--upstream`, `--routes '/api/search=3000,/api/*=500'`, admin token set). Agent-1 opened a fresh channel and paid through the proxy once over x402 v2 and twice over MPP. Every 402 offered both protocols: `PAYMENT-REQUIRED` and `WWW-Authenticate: Payment … method="zchannel", intent="charge"`. The unpriced `/free` path passed through with no payment. The record is in [spikes/testnet-proxy-mpp.json](spikes/testnet-proxy-mpp.json).

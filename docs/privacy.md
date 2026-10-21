@@ -37,6 +37,16 @@ What zchan hides depends on how a channel is funded and closed. The private path
   - The payer co-signs only after checking that the transaction spends only the channel output, pays nothing transparently, and contains one output to its address whose note commitment matches and which its key decrypts to exactly its change.
 - **Fresh transparent change:** with transparent funding, coins are chosen fewest first, and change goes to a new address for that channel, never back to the deposit address. `zchan-agent deposit --fresh` gives an unused deposit address.
 
+## Evidence
+
+Testnet, blocks 4,526,560–4,526,579 ([testnet.md](testnet.md)):
+- **Two channels funded with no transparent inputs.**
+- **A cooperative close with no transparent outputs**, after which the merchant and the solver each found their note with their own viewing key.
+
+## Gaps
+
+- **Agent channels have no cooperative close yet.** The solver closes them alone, so those closes are transparent.
+
 ## Claims this supports
 
 - **Shielded funding and cooperative closes:** the chain shows a channel's capacity and when it opened and closed, but not where its money came from, how it was split, or any payment in between.

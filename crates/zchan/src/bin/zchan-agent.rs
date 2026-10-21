@@ -7,6 +7,7 @@
 //! zchan-agent deposit --fresh                 a transparent address no channel has used
 //! zchan-agent shield                          move transparent coins to the shielded account
 //! zchan-agent balance                         transparent and shielded balances
+//! zchan-agent notes                           unspent shielded notes
 //! zchan-agent open --capacity ZAT --lock-blocks N [--shielded]
 //! zchan-agent get URL [--mpp] [--method M --body B]
 //!                                             pay a 402 (x402 v2, or MPP with --mpp) and fetch
@@ -49,6 +50,12 @@ async fn main() {
             Some(txid) => println!("{txid}"),
             None => die("no confirmed transparent coins to shield"),
         },
+        Some("notes") => {
+            let notes = ctx.shielded_notes().await.unwrap_or_else(|e| die(e));
+            out(serde_json::json!(notes.iter().map(|n| serde_json::json!({
+                "value": n.value(), "height": n.height, "txid": zchan_tx::txid_hex(&n.txid), "action": n.action,
+            })).collect::<Vec<_>>()));
+        }
         Some("balance") => {
             let t: u64 = ctx.coins().await.unwrap_or_else(|e| die(e)).iter().map(|(c, _)| c.value).sum();
             let s: u64 = ctx.shielded_notes().await.unwrap_or_else(|e| die(e)).iter().map(|n| n.value()).sum();
@@ -98,7 +105,7 @@ async fn main() {
             let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
             axum::serve(l, zchan::agent::router(agent)).await.unwrap_or_else(|e| die(e));
         }
-        _ => die("command: deposit | shield | balance | send | open | get | pay-ref | resume | status | watch | serve"),
+        _ => die("command: deposit | shield | balance | notes | send | open | get | pay-ref | resume | status | watch | serve"),
     }
 }
 

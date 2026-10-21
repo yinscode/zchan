@@ -120,6 +120,12 @@ impl Ctx {
         if net == NetworkType::Main {
             return Err(Error::Other("mainnet is not enabled (docs/plan.md §9)".into()));
         }
+        // Shielded scans start where this party's history starts: record it now, so notes
+        // that arrive before anyone asks for a balance are still found.
+        if store.read(|c| store::meta_get(c, "shielded_from"))?.is_none() {
+            let h = node.height().await?.saturating_sub(1);
+            store.tx(|c| store::meta_set(c, "shielded_from", &h.to_string()))?;
+        }
         Ok(Arc::new(Self {
             cfg,
             store,

@@ -1,0 +1,69 @@
+{
+  "network": "zcash:testnet",
+  "shield": {
+    "solver": {
+      "txid": "7fa054e841796d0f803b88cfab750b45488fb50e5604a17ab2f9191f5971b5db",
+      "height": 4526563,
+      "into_ironwood": 11240000
+    },
+    "agent-1": {
+      "txid": "1b1fe705f771997b687819b07e82569943d84e8add344a1e76efdf0786c262bd",
+      "height": 4526564,
+      "into_ironwood": 210000
+    }
+  },
+  "funding_from_notes": {
+    "solver\u2192merchant-a": {
+      "txid": "d736ba0888188c4a78d55516ba887b0f7c488ec91909b3d6bc4c7ca9ad62334d",
+      "height": 4526568,
+      "transparent_inputs": 0,
+      "transparent_outputs_zat": [
+        100000
+      ]
+    },
+    "agent-1\u2192solver": {
+      "txid": "a1275d7705720b21f47b2627639e0b8b7a1df95c3b0f41b85636425ed0d4bf73",
+      "height": 4526573,
+      "transparent_inputs": 0,
+      "transparent_outputs_zat": [
+        100000
+      ]
+    }
+  },
+  "payments": [
+    {
+      "amount": 20000,
+      "channel_id": "d736ba0888188c4a78d55516ba887b0f7c488ec91909b3d6bc4c7ca9ad62334d:0",
+      "cumulative": 20000,
+      "invoice_id": "dce78a071d8cc7ca85e90353f03f62ed",
+      "merchant_id": "merchant-a"
+    },
+    {
+      "amount": 20000,
+      "channel_id": "d736ba0888188c4a78d55516ba887b0f7c488ec91909b3d6bc4c7ca9ad62334d:0",
+      "cumulative": 40000,
+      "invoice_id": "7fcedabb1d210ff5df6968e6b1181107",
+      "merchant_id": "merchant-a"
+    }
+  ],
+  "coop_close_both_shielded": {
+    "txid": "c70690f3c6b6c672b952c4159be980634e9be90b61d5ddbe53def7ae33454c85",
+    "height": 4526577,
+    "transparent_inputs": 1,
+    "transparent_outputs": 0,
+    "ironwood_value_balance_zat": -80000,
+    "notes_found_by_owner": {
+      "merchant-a": 30000,
+      "solver": 50000
+    }
+  },
+  "agent_channel_close": {
+    "txid": "39a458cb35b1cf42b5fda7450155e568473c433e832a36806d4d1433ba03d3f8",
+    "height": 4526579,
+    "transparent_outputs_zat": [
+      40200,
+      49800
+    ],
+    "note": "unilateral, transparent"
+  }
+}

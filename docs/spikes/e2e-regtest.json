@@ -25,8 +25,8 @@
   },
   {
     "result": {
-      "channel": "bb26bae2867725684823023538f60c4cb37ce4fb783f465b32713d8399920f1e:0",
-      "shield_txid": "698602593d518fd06b3e875f93dbdc7c9eaf56cfe71fb066378ef81417f7eba9",
+      "channel": "0fb8cd968863c647a694d6210fda6e345c5c3fecf0ce96d58aebe48ea36d4537:0",
+      "shield_txid": "9a6e83af555a1a1580f5bbbaa6c2fcb9c323e1beecc1d3de4191149bdc64eaea",
       "transparent_inputs": 0
     },
     "step": "solver→merchant-d channel, shielded funding"
@@ -34,10 +34,10 @@
   {
     "result": {
       "agent-1_change_address_index": 1,
-      "agent-4_channel": "5639bae0ae2ea12b8c55d298c540582e399fd8a29807c28701f41e6475335178:0",
+      "agent-4_channel": "a52066d929815af2fdf543ce82cbc62fd6f27af3f7e3e0e3c0d1e0f6edfe0dd9:0",
       "agent-4_funding_transparent_inputs": 0,
       "agent-4_funding_transparent_outputs": 1,
-      "agent-4_shield_txid": "35b204dd6a95fd6add00dce135be51a70786d05035a7936a3672fc87636ec8db"
+      "agent-4_shield_txid": "903fc2604c770a82374d715b05e3efc73aa00a648ac6aa4a6ffd22693bcfac7e"
     },
     "step": "privacy: fresh change, shielded funding"
   },
@@ -70,8 +70,8 @@
       "agent-1": 12200,
       "agent-2": 2100,
       "body": {
-        "data": "weather · paid content from merchant-a at 1792610544",
-        "invoice": "87dae3222f21a786eea994cee40bdc59",
+        "data": "weather · paid content from merchant-a at 1792612317",
+        "invoice": "7d1ab2d89ea3cf99a0b29b06b975b2a7",
         "merchant": "merchant-a",
         "resource": "/paid/weather"
       },
@@ -81,15 +81,6 @@
   },
   {
     "result": [
-      {
-        "acked": 10000,
-        "channel": "5272bcffccea1e31518522ed4374affea608f9e7e61827fbdfa0c4db662a6e10:0",
-        "cumulative": 10000,
-        "ok": true,
-        "peer": "merchant-b",
-        "pending": 0,
-        "side": "merchant"
-      },
       {
         "acked": 0,
         "channel": "cd4bbcd8ec2b4a9d92157499f4c76c0be3ec72c4c4e5fac96f953e74e3a87aa9:0",
@@ -101,10 +92,19 @@
       },
       {
         "acked": 0,
-        "channel": "bb26bae2867725684823023538f60c4cb37ce4fb783f465b32713d8399920f1e:0",
+        "channel": "0fb8cd968863c647a694d6210fda6e345c5c3fecf0ce96d58aebe48ea36d4537:0",
         "cumulative": 0,
         "ok": true,
         "peer": "merchant-d",
+        "pending": 0,
+        "side": "merchant"
+      },
+      {
+        "acked": 10000,
+        "channel": "5272bcffccea1e31518522ed4374affea608f9e7e61827fbdfa0c4db662a6e10:0",
+        "cumulative": 10000,
+        "ok": true,
+        "peer": "merchant-b",
         "pending": 0,
         "side": "merchant"
       },
@@ -145,7 +145,7 @@
         "side": "agent"
       },
       {
-        "channel": "5639bae0ae2ea12b8c55d298c540582e399fd8a29807c28701f41e6475335178:0",
+        "channel": "a52066d929815af2fdf543ce82cbc62fd6f27af3f7e3e0e3c0d1e0f6edfe0dd9:0",
         "credit": 0,
         "cumulative": 2100,
         "increments": 2100,
@@ -176,12 +176,12 @@
       "mpp_post_echo": "hello zchan",
       "mpp_proxied": "mpp",
       "mpp_receipt": {
-        "channelId": "bb26bae2867725684823023538f60c4cb37ce4fb783f465b32713d8399920f1e:0",
+        "channelId": "0fb8cd968863c647a694d6210fda6e345c5c3fecf0ce96d58aebe48ea36d4537:0",
         "cumulative": 6000,
         "method": "zchannel",
-        "reference": "f69041be986d8988cfca541b370e46e0",
+        "reference": "97efe4353b30c486e5988fd5beb0a92f",
         "status": "success",
-        "timestamp": "2026-10-21T19:22:24Z"
+        "timestamp": "2026-10-21T19:51:57Z"
       },
       "replay": "invalid-challenge",
       "tampered": "invalid-challenge",
@@ -197,20 +197,20 @@
   {
     "result": [
       {
-        "acked": 10000,
-        "channel": "5272bcffccea1e31518522ed4374affea608f9e7e61827fbdfa0c4db662a6e10:0",
-        "cumulative": 10000,
-        "ok": true,
-        "peer": "merchant-b",
-        "pending": 0,
-        "side": "merchant"
-      },
-      {
         "acked": 0,
         "channel": "cd4bbcd8ec2b4a9d92157499f4c76c0be3ec72c4c4e5fac96f953e74e3a87aa9:0",
         "cumulative": 0,
         "ok": true,
         "peer": "merchant-c",
+        "pending": 0,
+        "side": "merchant"
+      },
+      {
+        "acked": 10000,
+        "channel": "5272bcffccea1e31518522ed4374affea608f9e7e61827fbdfa0c4db662a6e10:0",
+        "cumulative": 10000,
+        "ok": true,
+        "peer": "merchant-b",
         "pending": 0,
         "side": "merchant"
       },
@@ -225,7 +225,7 @@
       },
       {
         "acked": 13000,
-        "channel": "bb26bae2867725684823023538f60c4cb37ce4fb783f465b32713d8399920f1e:0",
+        "channel": "0fb8cd968863c647a694d6210fda6e345c5c3fecf0ce96d58aebe48ea36d4537:0",
         "cumulative": 13000,
         "ok": true,
         "peer": "merchant-d",
@@ -242,7 +242,7 @@
         "side": "agent"
       },
       {
-        "channel": "5639bae0ae2ea12b8c55d298c540582e399fd8a29807c28701f41e6475335178:0",
+        "channel": "a52066d929815af2fdf543ce82cbc62fd6f27af3f7e3e0e3c0d1e0f6edfe0dd9:0",
         "credit": 0,
         "cumulative": 2100,
         "increments": 2100,
@@ -273,10 +273,10 @@
   },
   {
     "result": {
-      "first": "Err(Refused(409, \"concurrent request for this payment or quote; retry\"))",
+      "first": "Ok(\"done\")",
       "payments_for_invoice": 1,
       "retry": "done",
-      "second": "Ok(\"done\")"
+      "second": "Err(Refused(409, \"concurrent request for this payment or quote; retry\"))"
     },
     "step": "duplicate + concurrent pay"
   },
@@ -292,13 +292,13 @@
       "credit_applied_next": 1100,
       "error": "Some(Refused(402, \"payment failed, credited: merchant refused: refused (409): refused (fault injection)\"))",
       "events": {
-        "at": 1792610544,
+        "at": 1792612318,
         "data": {
           "credited": 1100,
           "exposure": 1000,
-          "invoice": "0f8cae853578bf4860eda109c27e998e",
+          "invoice": "9c0ae35aff4065d442076124c63f74aa",
           "merchant": "merchant-c",
-          "payment": "c464334cb3ab2b7e8b19fafc5dddfec4",
+          "payment": "8091016736f59697a10571cb0d7b6f41",
           "reason": "refused (409): refused (fault injection)",
           "sent_state": 1000
         },
@@ -312,7 +312,7 @@
     "result": [
       {
         "acked": 13000,
-        "channel": "bb26bae2867725684823023538f60c4cb37ce4fb783f465b32713d8399920f1e:0",
+        "channel": "0fb8cd968863c647a694d6210fda6e345c5c3fecf0ce96d58aebe48ea36d4537:0",
         "cumulative": 13000,
         "ok": true,
         "peer": "merchant-d",
@@ -356,7 +356,7 @@
         "side": "agent"
       },
       {
-        "channel": "5639bae0ae2ea12b8c55d298c540582e399fd8a29807c28701f41e6475335178:0",
+        "channel": "a52066d929815af2fdf543ce82cbc62fd6f27af3f7e3e0e3c0d1e0f6edfe0dd9:0",
         "credit": 0,
         "cumulative": 2100,
         "increments": 2100,
@@ -398,12 +398,12 @@
         "amount": 3000,
         "channel_id": "f6f3e20af6d68f641e6860b9f4c953eef9646f5cf983d138df93b8d17779ba7e:0",
         "cumulative": 19000,
-        "invoice_id": "495b379cde34b444c5d98f256f0925e1",
+        "invoice_id": "9d3498cc826e4a74c35047fd80c34e43",
         "merchant_id": "merchant-a"
       },
       "altered": "Some(Refused(400, \"signature: zchan/invoice/v1 signature invalid\"))",
       "expired": "Some(Refused(410, \"invoice expired\"))",
-      "invoice_url": "http://127.0.0.1:17201/invoices/495b379cde34b444c5d98f256f0925e1",
+      "invoice_url": "http://127.0.0.1:17201/invoices/9d3498cc826e4a74c35047fd80c34e43",
       "quote_total": 3100,
       "reused": "Some(Refused(409, \"invoice already paid\"))",
       "wrong_merchant": "Some(Refused(400, \"invoice is not signed by merchant merchant-a\"))"
@@ -416,7 +416,7 @@
         "amount": 2000,
         "channel_id": "f6f3e20af6d68f641e6860b9f4c953eef9646f5cf983d138df93b8d17779ba7e:0",
         "cumulative": 21000,
-        "invoice_id": "c115f184df61cfbf21be75b2c09fff05",
+        "invoice_id": "ee849a28c477b4a6290f5ee6a7138cfb",
         "merchant_id": "merchant-a"
       },
       "exit_code": 86,
@@ -428,7 +428,7 @@
     "result": [
       {
         "acked": 13000,
-        "channel": "bb26bae2867725684823023538f60c4cb37ce4fb783f465b32713d8399920f1e:0",
+        "channel": "0fb8cd968863c647a694d6210fda6e345c5c3fecf0ce96d58aebe48ea36d4537:0",
         "cumulative": 13000,
         "ok": true,
         "peer": "merchant-d",
@@ -472,7 +472,7 @@
         "side": "agent"
       },
       {
-        "channel": "5639bae0ae2ea12b8c55d298c540582e399fd8a29807c28701f41e6475335178:0",
+        "channel": "a52066d929815af2fdf543ce82cbc62fd6f27af3f7e3e0e3c0d1e0f6edfe0dd9:0",
         "credit": 0,
         "cumulative": 2100,
         "increments": 2100,
@@ -507,7 +507,7 @@
         "amount": 2000,
         "channel_id": "f6f3e20af6d68f641e6860b9f4c953eef9646f5cf983d138df93b8d17779ba7e:0",
         "cumulative": 23000,
-        "invoice_id": "d88cdacc00e59a30ed13cfb8b00275c8",
+        "invoice_id": "9aa3f2be6a09db601e43704051d20d89",
         "merchant_id": "merchant-a"
       },
       "pending_while_down": 1
@@ -518,7 +518,7 @@
     "result": [
       {
         "acked": 13000,
-        "channel": "bb26bae2867725684823023538f60c4cb37ce4fb783f465b32713d8399920f1e:0",
+        "channel": "0fb8cd968863c647a694d6210fda6e345c5c3fecf0ce96d58aebe48ea36d4537:0",
         "cumulative": 13000,
         "ok": true,
         "peer": "merchant-d",
@@ -562,7 +562,7 @@
         "side": "agent"
       },
       {
-        "channel": "5639bae0ae2ea12b8c55d298c540582e399fd8a29807c28701f41e6475335178:0",
+        "channel": "a52066d929815af2fdf543ce82cbc62fd6f27af3f7e3e0e3c0d1e0f6edfe0dd9:0",
         "credit": 0,
         "cumulative": 2100,
         "increments": 2100,
@@ -602,7 +602,7 @@
     "result": [
       {
         "acked": 13000,
-        "channel": "bb26bae2867725684823023538f60c4cb37ce4fb783f465b32713d8399920f1e:0",
+        "channel": "0fb8cd968863c647a694d6210fda6e345c5c3fecf0ce96d58aebe48ea36d4537:0",
         "cumulative": 13000,
         "ok": true,
         "peer": "merchant-d",
@@ -646,7 +646,7 @@
         "side": "agent"
       },
       {
-        "channel": "5639bae0ae2ea12b8c55d298c540582e399fd8a29807c28701f41e6475335178:0",
+        "channel": "a52066d929815af2fdf543ce82cbc62fd6f27af3f7e3e0e3c0d1e0f6edfe0dd9:0",
         "credit": 0,
         "cumulative": 2100,
         "increments": 2100,
@@ -705,7 +705,7 @@
       "level": 23000,
       "solver_change_shielded": 1967000,
       "transparent_outputs": [],
-      "txid": "029a25638baa83a5124ad63d4c39c1e00843f7cc384541cd6a87ba034ac5e4f6"
+      "txid": "c6a4ae09bb07fec31becec28aed0b0c144f4678d76f13c924f3b591a78f402f8"
     },
     "step": "cooperative close, both sides to Ironwood"
   },
@@ -740,20 +740,20 @@
         "side": "merchant"
       },
       {
+        "acked": 13000,
+        "channel": "0fb8cd968863c647a694d6210fda6e345c5c3fecf0ce96d58aebe48ea36d4537:0",
+        "cumulative": 13000,
+        "ok": true,
+        "peer": "merchant-d",
+        "pending": 0,
+        "side": "merchant"
+      },
+      {
         "acked": 20000,
         "channel": "5272bcffccea1e31518522ed4374affea608f9e7e61827fbdfa0c4db662a6e10:0",
         "cumulative": 20000,
         "ok": true,
         "peer": "merchant-b",
-        "pending": 0,
-        "side": "merchant"
-      },
-      {
-        "acked": 13000,
-        "channel": "bb26bae2867725684823023538f60c4cb37ce4fb783f465b32713d8399920f1e:0",
-        "cumulative": 13000,
-        "ok": true,
-        "peer": "merchant-d",
         "pending": 0,
         "side": "merchant"
       },
@@ -767,7 +767,7 @@
         "side": "merchant"
       },
       {
-        "channel": "5639bae0ae2ea12b8c55d298c540582e399fd8a29807c28701f41e6475335178:0",
+        "channel": "a52066d929815af2fdf543ce82cbc62fd6f27af3f7e3e0e3c0d1e0f6edfe0dd9:0",
         "credit": 0,
         "cumulative": 2100,
         "increments": 2100,
