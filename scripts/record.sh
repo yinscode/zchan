@@ -45,7 +45,12 @@ shot "$A/checkout?invoice=$INV" "$OUT/shots/checkout-paid.png" 520,900
     curl -s -X POST "$SOLVER/admin/channels/$id/close" | json '"  agent channel           "+d["txid"]'
   done
 } | tee "$OUT/close.txt"
-if [ "$NETWORK" = regtest ]; then sleep 4; else sleep 120; fi
+# Wait until every channel has settled on chain (a block or two on testnet).
+for _ in $(seq 1 120); do
+  open=$(curl -s "$SOLVER/status.json" | json 'sum(1 for k in ("agent_channels","merchant_channels") for c in d[k] if c["status"]!="closed")')
+  [ "$open" = 0 ] && break
+  sleep 10
+done
 shot "$SOLVER/status?still" "$OUT/shots/dashboard-2.png" 1280,1100
 curl -s "$SOLVER/status.json" > "$OUT/solver-status.json"
 

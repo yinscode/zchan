@@ -93,10 +93,7 @@ pub struct Ctx {
 impl Ctx {
     pub async fn new(cfg: Config) -> Result<Arc<Self>> {
         std::fs::create_dir_all(&cfg.data_dir).map_err(|e| Error::Other(format!("data dir: {e}")))?;
-        let wallet = match &cfg.dev_seed {
-            Some(label) => Wallet::dev(label),
-            None => Wallet::from_seed(load_or_create_seed(&cfg.data_dir)?),
-        };
+        let wallet = wallet(&cfg)?;
         let store = Store::open(cfg.data_dir.join("zchan.db").to_str().unwrap())?;
         let node = Node::new(cfg.node_url.clone());
         let info = node.blockchain_info().await?;
@@ -195,6 +192,16 @@ impl Ctx {
             std::process::exit(86);
         }
     }
+}
+
+/// The party's wallet: from `dev_seed`, or from `<data_dir>/seed` (created if absent).
+/// Needs no node, so an account can be made offline.
+pub fn wallet(cfg: &Config) -> Result<Wallet> {
+    std::fs::create_dir_all(&cfg.data_dir).map_err(|e| Error::Other(format!("data dir: {e}")))?;
+    Ok(match &cfg.dev_seed {
+        Some(label) => Wallet::dev(label),
+        None => Wallet::from_seed(load_or_create_seed(&cfg.data_dir)?),
+    })
 }
 
 fn load_or_create_seed(dir: &std::path::Path) -> Result<[u8; 32]> {

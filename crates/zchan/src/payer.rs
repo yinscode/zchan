@@ -131,6 +131,41 @@ pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32) -
     })
 }
 
+/// Sends `amount` from this party's deposit coins to `to`, change back to the deposit
+/// address (to split faucet funds between parties). Returns the display txid.
+pub async fn send(ctx: &Ctx, to: zcash_transparent::address::TransparentAddress, amount: u64) -> Result<String> {
+    use zchan_tx::tx::{self, Pay, Spec};
+    let coins_lock = ctx.lock("coins");
+    let _g = coins_lock.lock().await;
+    let coins = ctx.coins().await?;
+    let total: u64 = coins.iter().map(|(c, _)| c.value).sum();
+    let change = ctx.wallet.coin_address(0);
+    let tip = ctx.tip().await?;
+    let mut spec = Spec {
+        target_height: tip + 1,
+        expiry_height: tip + 40,
+        lock_height: None,
+        inputs: coins.iter().map(|(c, _)| c.clone()).collect(),
+        outputs: vec![Pay::Transparent(to, amount), Pay::Transparent(change, 1)],
+        ironwood_anchor: None,
+    };
+    let fee = tx::fee(&ctx.p, &spec)?;
+    let left = total
+        .checked_sub(amount + fee)
+        .filter(|l| *l >= crate::channel::MIN_CHANGE)
+        .ok_or_else(|| Error::Funding(format!("deposit holds {total}; cannot send {amount} + fee {fee} + change")))?;
+    spec.outputs[1] = Pay::Transparent(change, left);
+    let mut pczt = tx::build(&ctx.p, &spec)?;
+    for (i, (_, sk)) in coins.iter().enumerate() {
+        pczt = tx::sign(pczt, i, sk)?;
+    }
+    let f = tx::extract(pczt)?;
+    let txid = ctx.broadcast(&f).await?;
+    ctx.wait_mined(&f).await?;
+    ctx.store.tx(|c| store::event(c, "sent", json!({"to": crate::wire::addr_str(&to), "amount": amount, "fee": fee, "txid": txid})))?;
+    Ok(txid)
+}
+
 /// How much more this payer channel can pay.
 pub fn remaining(ctx: &Ctx, row: &ChannelRow) -> Result<u64> {
     let terms = Terms::try_from(&row.terms)?;

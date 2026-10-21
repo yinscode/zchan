@@ -1,0 +1,167 @@
+{
+  "network": "zcash:testnet",
+  "merchants": [
+    {
+      "channel_id": "75f44ac0eaf454151e00e315af3b4af8b21d5e33dfb73545aac257a6a65bcdde:0",
+      "id": "merchant-a",
+      "pubkey": "03673a68d4bdaf048af86ba0a671a5adb814187c82e0f6a57843156c7e6c2c35dc",
+      "url": "http://127.0.0.1:7201"
+    },
+    {
+      "channel_id": "a1327aa74e504ad05f86722bd56a71bd5d2f5177183985208bc6d7f02eec3117:0",
+      "id": "merchant-b",
+      "pubkey": "025b235517b224c66ed79e2b6f9af57425f59fd94d1d36e7dbd8913aa7fb408062",
+      "url": "http://127.0.0.1:7202"
+    }
+  ],
+  "channels": [
+    {
+      "id": "a1327aa74e504ad05f86722bd56a71bd5d2f5177183985208bc6d7f02eec3117:0",
+      "role": "payer",
+      "peer_id": "merchant-b",
+      "status": "closed",
+      "settled_by": "close",
+      "cumulative": 5000,
+      "close_txid": "25aff53e030b213f49e9f9b320e14aae8d0913a35ef9cbe81853d564cb6054ce",
+      "funding_height": 4524460,
+      "capacity": 100000,
+      "lock_height": 4527457
+    },
+    {
+      "id": "75f44ac0eaf454151e00e315af3b4af8b21d5e33dfb73545aac257a6a65bcdde:0",
+      "role": "payer",
+      "peer_id": "merchant-a",
+      "status": "closed",
+      "settled_by": "coop-ironwood",
+      "cumulative": 70000,
+      "close_txid": "2e82924da246f71243bddad100cfda5ada375b0afcd73a480a89b39d540863a7",
+      "funding_height": 4524456,
+      "capacity": 200000,
+      "lock_height": 4527452
+    },
+    {
+      "id": "a14cac0736282948eaa47f78005346a459ee1d661cbf6c5a8bb89668e49218ba:0",
+      "role": "payee",
+      "peer_id": "agent-2",
+      "status": "closed",
+      "settled_by": "close",
+      "cumulative": 20100,
+      "close_txid": "c35ca05aaff3c1a6886fc65be8966aa5a3e69f5fc5ce53286545d443b0a0e441",
+      "funding_height": 4524467,
+      "capacity": 50000,
+      "lock_height": 4526467
+    },
+    {
+      "id": "bacb81f57676cdb9e75d3024820dd9eb863b977eaac226532dd55eac3c0a9b19:0",
+      "role": "payee",
+      "peer_id": "agent-1",
+      "status": "closed",
+      "settled_by": "close",
+      "cumulative": 55300,
+      "close_txid": "95dea063c92bcf84595c5a88e893c2b2a5dcb14911d0445d47ce71e3fe770136",
+      "funding_height": 4524466,
+      "capacity": 100000,
+      "lock_height": 4526462
+    }
+  ],
+  "payments": [
+    {
+      "id": "9ade74a057b5860a9bfb0d463199de92",
+      "merchant": "merchant-a",
+      "resource": "/paid/weather",
+      "amount": 20000,
+      "fee": 100,
+      "status": "done",
+      "agent_cumulative": 20100,
+      "merchant_cumulative": 20000
+    },
+    {
+      "id": "578ed09c9c01f3b891af98c0ac2140ae",
+      "merchant": "merchant-b",
+      "resource": "/paid/news",
+      "amount": 5000,
+      "fee": 100,
+      "status": "done",
+      "agent_cumulative": 25200,
+      "merchant_cumulative": 5000
+    },
+    {
+      "id": "83c72099d922665a6d5b10d9a0f85bc0",
+      "merchant": "merchant-a",
+      "resource": "/paid/weather",
+      "amount": 20000,
+      "fee": 100,
+      "status": "done",
+      "agent_cumulative": 20100,
+      "merchant_cumulative": 40000
+    },
+    {
+      "id": "3a4b28c42207308a541e85f89eb55355",
+      "merchant": "merchant-a",
+      "resource": "checkout:coffee",
+      "amount": 30000,
+      "fee": 100,
+      "status": "done",
+      "agent_cumulative": 55300,
+      "merchant_cumulative": 70000
+    }
+  ],
+  "reconcile": [
+    {
+      "acked": 5000,
+      "channel": "a1327aa74e504ad05f86722bd56a71bd5d2f5177183985208bc6d7f02eec3117:0",
+      "cumulative": 5000,
+      "ok": true,
+      "peer": "merchant-b",
+      "pending": 0,
+      "side": "merchant"
+    },
+    {
+      "acked": 70000,
+      "channel": "75f44ac0eaf454151e00e315af3b4af8b21d5e33dfb73545aac257a6a65bcdde:0",
+      "cumulative": 70000,
+      "ok": true,
+      "peer": "merchant-a",
+      "pending": 0,
+      "side": "merchant"
+    },
+    {
+      "channel": "a14cac0736282948eaa47f78005346a459ee1d661cbf6c5a8bb89668e49218ba:0",
+      "credit": 0,
+      "cumulative": 20100,
+      "increments": 20100,
+      "ok": true,
+      "peer": "agent-2",
+      "side": "agent"
+    },
+    {
+      "channel": "bacb81f57676cdb9e75d3024820dd9eb863b977eaac226532dd55eac3c0a9b19:0",
+      "credit": 0,
+      "cumulative": 55300,
+      "increments": 55300,
+      "ok": true,
+      "peer": "agent-1",
+      "side": "agent"
+    }
+  ],
+  "close_heights": {
+    "all four closes": 4524474
+  },
+  "funding_transfers": {
+    "solver\u2192agent-1 500000": "2a6990f28cbc6127c349cd3629db179da2eb3eac3867e592a737cda1a0cf7643",
+    "solver\u2192agent-2 300000": "c152c955e31e17662bbb170596fd441dbd41d7ec5070da6732baf9de5154f29c"
+  },
+  "refund": {
+    "channel": "426a877db37fc5e18e792f129c901a86d90cd3c3d2361d9aa0d0ec3f811ae60f:0",
+    "capacity": 50000,
+    "funding_height": 4524483,
+    "lock_height": 4524504,
+    "refund_txid": "70e2e4147efaa7f8a3a1aec6085d78543cf6e300038838e0bfe8716da070d32e",
+    "mined_height": 4524506,
+    "expiry_height": 0,
+    "outputs_zat": [
+      40000
+    ],
+    "solver_status": "expired"
+  }
+}

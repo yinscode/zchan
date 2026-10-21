@@ -19,10 +19,10 @@
 | Oct 22: open, update, close, refund, recovery after restart, payee close at deadline | **passed** (regtest) | `crates/zchan/tests/e2e.rs`, `docs/spikes/e2e-regtest.json` |
 | Oct 23: one agent → A and B; two agents share solver→A; idempotent and concurrent retries; exhausted capacity; refusal → credit; reconciliation | **passed** (regtest) | same |
 | Oct 24: x402 v2 route paid once; invalid, replayed, mismatched, expired stay unpaid | **passed** (regtest) | same |
-| Oct 24: **first full testnet run** | **open**: needs a testnet node endpoint and ~0.006 TAZ | runner: `NETWORK=testnet scripts/demo.sh`, `docs/testnet.md` |
+| Oct 24: **first full testnet run** | **passed** (testnet, blocks 4,524,435–4,524,506): 4 channels, 4 payments incl. QR, Ironwood and transparent closes, a watcher refund | `docs/testnet.md`, `docs/spikes/testnet-run.json` |
 | Oct 25: QR checkout; altered, wrong-merchant, expired, reused invoices fail | **passed** (regtest; phone scan not tested on a device) | e2e; `docs/video.md` |
 | Oct 26: solver killed mid-payment, merchant down, status page, docs | **passed** (regtest) | e2e; `docs/design.md`, `/status` |
-| Oct 27: record | **regtest cut recorded** (`scripts/record.sh`, 2:00); testnet cut follows the testnet run | `docs/video.md` |
+| Oct 27: record | **recorded**: testnet and regtest cuts, 2:00 each (`scripts/record.sh`) | `docs/video.md` |
 | Oct 28: submit | **open**: submission is made from the user's account | — |
 
 P1 built: QR checkout, Ironwood cooperative close, second agent in the demo, status page. P2 untouched, as planned.

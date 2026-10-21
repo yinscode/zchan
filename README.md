@@ -18,8 +18,8 @@ Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2S
 | x402 v2 `zchannel` route and client | regtest e2e: paid once; replayed, mismatched, forged, malformed and expired credentials stay unpaid |
 | QR checkout and phone approval page | regtest e2e: altered, wrong-merchant, expired and reused invoices fail |
 | Cooperative close to Ironwood (shielded merchant payout) | regtest e2e |
-| Testnet run | runner ready ([docs/testnet.md](docs/testnet.md)); not yet run |
-| Demo video | `scripts/record.sh` records it from a live run (regtest cut made) |
+| Testnet run | **done** October 21, 2026: channels, x402 and QR payments, Ironwood and transparent closes, a refund ([docs/testnet.md](docs/testnet.md)) |
+| Demo video | `scripts/record.sh` records it from a live run (testnet and regtest cuts made) |
 | Mainnet | refused by the code |
 
 ## Run the demo

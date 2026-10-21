@@ -2,6 +2,8 @@
 //!
 //! ```text
 //! zchan-agent deposit                         print the address that funds channels
+//!                                             (`--network testnet|regtest`: offline, no node)
+//! zchan-agent send ADDRESS ZAT                pay from the deposit (split faucet funds)
 //! zchan-agent open --capacity ZAT --lock-blocks N
 //! zchan-agent get URL                         x402: pay and fetch a resource
 //! zchan-agent pay-ref INVOICE_URL             pay a checkout invoice by reference
@@ -23,6 +25,16 @@ async fn main() {
         cfg.name = "agent".into();
     }
     let solver = a.str("solver", "http://127.0.0.1:7100");
+    if let (Some("deposit"), Some(net)) = (a.command.as_deref(), a.get("network")) {
+        let w = zchan::ctx::wallet(&cfg).unwrap_or_else(|e| die(e));
+        let net = match net {
+            "testnet" => zcash_protocol::consensus::NetworkType::Test,
+            "regtest" => zcash_protocol::consensus::NetworkType::Regtest,
+            _ => die("--network testnet|regtest"),
+        };
+        println!("{}", zchan_tx::keys::encode(&w.coin_address(0), net));
+        return;
+    }
     let ctx = Ctx::new(cfg).await.unwrap_or_else(|e| die(e));
     let agent = Arc::new(Agent::new(ctx.clone(), &solver));
     let out = |v: serde_json::Value| println!("{}", serde_json::to_string_pretty(&v).unwrap());
@@ -45,6 +57,14 @@ async fn main() {
             let row: InvoiceRow = web::get(&ctx.http, r).await.unwrap_or_else(|e| die(e));
             let ack = agent.pay_invoice(&row.invoice).await.unwrap_or_else(|e| die(e));
             out(serde_json::to_value(&ack).unwrap());
+        }
+        Some("send") => {
+            let (to, amount) = match a.positional.as_slice() {
+                [to, amount] => (to, amount.parse::<u64>().unwrap_or_else(|e| die(e))),
+                _ => die("send ADDRESS ZAT"),
+            };
+            let (_, addr) = zchan_tx::keys::decode(to).unwrap_or_else(|| die("bad address"));
+            println!("{}", zchan::payer::send(&ctx, addr, amount).await.unwrap_or_else(|e| die(e)));
         }
         Some("resume") => out(serde_json::to_value(agent.resume().await.unwrap_or_else(|e| die(e))).unwrap()),
         Some("status") => {
