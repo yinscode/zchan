@@ -17,7 +17,7 @@ Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2S
 | Solver, merchants, agents; idempotent payments, credits, crash recovery | regtest end-to-end test passes ([e2e](docs/spikes/e2e-regtest.json)) |
 | x402 v2 `zchannel` route and client | regtest e2e: paid once; replayed, mismatched, forged, malformed and expired credentials stay unpaid |
 | MPP `zchannel` charge (`WWW-Authenticate: Payment`) | regtest e2e: paid once; replayed, tampered, wrong-path and malformed credentials stay unpaid |
-| Proxy mode (gate any HTTP API) | regtest e2e: free paths pass through; priced paths paid over either protocol; payment headers not forwarded; an upstream failure releases the invoice |
+| Proxy mode (gate any HTTP API) | testnet run (x402 + MPP through the proxy) and regtest e2e: free paths pass through; priced paths paid over either protocol; payment headers not forwarded; an upstream failure releases the invoice |
 | QR checkout and phone approval page | regtest e2e: altered, wrong-merchant, expired and reused invoices fail |
 | Cooperative close to Ironwood (shielded merchant payout) | regtest e2e |
 | Testnet run | **done** October 21, 2026: channels, x402 and QR payments, Ironwood and transparent closes, a refund ([docs/testnet.md](docs/testnet.md)) |
@@ -112,4 +112,5 @@ All take `--data DIR --node URL`, plus `--dev-seed LABEL` on regtest. Without a 
 | `crates/zchan-tx` | v6 transactions through pczt, Zakura JSON-RPC, network parameters, seed wallet, refund watcher |
 | `crates/zchan` | channels, signed messages, SQLite store, the three services, x402 |
 | `infra/zakura` | regtest node (Zakura 1.6.0; NU7 at height 200) |
+| `site/index.html` | landing page (static, no build step) |
 | `docs/plan.md` | plan and schedule · `docs/design.md` design and trust model · `docs/x402-zchannel.md` scheme |

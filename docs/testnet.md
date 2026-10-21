@@ -21,6 +21,22 @@ Every channel reconciled on the solver (`reconcile: ok` for all four). Funds cam
 
 Everything that runs on regtest runs on testnet unchanged. Only the node, the funding and the lock lengths differ.
 
+## Proxy mode and MPP on testnet (blocks 4,524,592–4,524,606)
+
+Merchant D ran in proxy mode in front of an existing HTTP API (`--upstream`, `--routes '/api/search=3000,/api/*=500'`, admin token set). Agent-1 opened a fresh channel and paid through the proxy once over x402 v2 and twice over MPP. Every 402 offered both protocols: `PAYMENT-REQUIRED` and `WWW-Authenticate: Payment … method="zchannel", intent="charge"`. The unpriced `/free` path passed through with no payment. The record is in [spikes/testnet-proxy-mpp.json](spikes/testnet-proxy-mpp.json).
+
+| Step | Txid or invoice | Height | Result |
+|---|---|---|---|
+| solver → merchant-d channel (funding) | `7efa2dd0e6275829ee040d9f4b741293e0f7903338f2714e743d86d1c4b62739` | 4,524,602 | 100,000 capacity |
+| agent-1 → solver channel (funding) | `54c85351af8bdaa4b54dede4dd923ce6b100c9d19ddc0987eba52a8fe31dd00a` | 4,524,605 | 100,000 capacity |
+| x402 `GET /api/search?q=zec` (proxied) | invoice `2bbe8463…` | — | 200, `PAYMENT-RESPONSE` success, merchant level 3,000 |
+| MPP `GET /api/search?q=mpp` (proxied) | invoice `a609491e…` | — | 200, `Payment-Receipt` success, level 6,000 |
+| MPP `POST /api/echo` (proxied, body forwarded) | invoice `43f19810…` | — | 200, `Payment-Receipt` success, level 6,500 |
+| merchant-d close | `95a278ab5f4c895f5c88a91d74d47aef7ec1bbaa14e963738bcdf9428dbd206f` | 4,524,606 | 6,500 · 83,500 |
+| agent-1 channel close (by the solver) | `23c74660f42db0a9ead0d4beb9b45ed3b76397c603c34cddbc52eb7cce71ef3e` | 4,524,606 | 6,800 · 83,200 (6,500 + 3 × 100 fee) |
+
+Both channels reconciled on the solver before closing.
+
 ## Needs
 
 - A Zakura testnet JSON-RPC endpoint with `getaddressutxos`, `getrawtransaction` (verbose) and `z_gettreestate`, given as `ZCHAN_NODE_URL`. Never commit it.

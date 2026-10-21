@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>zchan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Zcash payment channels for AI agents and real-time commerce: pay per request, settle once.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a ledger. A live channel in the hero, then wide bands that alternate reading
+   (benefits, use cases) with working material (flow, code, proof). */
+:root {
+  --bg: #f1f2ec;
+  --panel: #fbfbf7;
+  --ink: #15201c;
+  --muted: #59655f;
+  --line: #d5d9cf;
+  --gold: #c88a0b;
+  --gold-soft: #f4e3b5;
+  --paid: #1d7556;
+  --term: #15201c;
+  --term-ink: #dfe6df;
+  --term-dim: #8a978f;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body: "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1513; --panel: #151d1a; --ink: #e5ebe4; --muted: #9ba79f; --line: #26322d;
+    --gold: #f0b43a; --gold-soft: #3a2f14; --paid: #55cf9f; --term: #0a0f0d; --term-ink: #dfe6df; --term-dim: #7f8c85;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1513; --panel: #151d1a; --ink: #e5ebe4; --muted: #9ba79f; --line: #26322d;
+  --gold: #f0b43a; --gold-soft: #3a2f14; --paid: #55cf9f; --term: #0a0f0d; --term-ink: #dfe6df; --term-dim: #7f8c85;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 var(--body); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 4px; }
+.wrap { max-width: 1160px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.015em; }
+h1 { font-size: clamp(42px, 7vw, 86px); line-height: 0.98; font-weight: 800; }
+h2 { font-size: clamp(30px, 4.2vw, 48px); line-height: 1.05; font-weight: 700; }
+h3 { font-size: 21px; line-height: 1.2; font-weight: 700; }
+p { margin: 0; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 20px; color: var(--muted); max-width: 60ch; }
+.mono { font-family: var(--mono); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Header */
+header.top { padding-block: 18px; border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.mark { display: flex; align-items: baseline; gap: 10px; text-decoration: none; }
+.mark b { font: 800 26px/1 var(--display); letter-spacing: -0.03em; }
+.mark span { font: 500 12px/1 var(--mono); color: var(--muted); }
+nav.links { display: flex; gap: 22px; flex-wrap: wrap; font-size: 15px; }
+nav.links a { text-decoration: none; color: var(--muted); }
+nav.links a:hover { color: var(--ink); }
+
+/* Hero */
+.hero { padding-block: 64px 56px; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 48px; align-items: center; }
+.hero h1 em { font-style: normal; color: var(--gold); }
+.hero .lede { margin-top: 22px; }
+.cta { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 999px; font: 700 15px/1 var(--body); text-decoration: none; border: 1.5px solid var(--ink); }
+.btn.solid { background: var(--ink); color: var(--bg); }
+.btn.ghost { background: transparent; color: var(--ink); }
+
+/* Live channel */
+.channel { background: var(--term); color: var(--term-ink); border-radius: 16px; padding: 22px 22px 18px; font: 13.5px/1.55 var(--mono); min-width: 0; box-shadow: 0 30px 60px -40px rgba(10, 20, 16, 0.6); }
+.channel .head { display: flex; justify-content: space-between; gap: 12px; color: var(--term-dim); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+.channel .head .live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #55cf9f; margin-right: 7px; vertical-align: 1px; }
+.meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0 14px; }
+.meter { border: 1px solid #26322d; border-radius: 10px; padding: 10px 12px; }
+.meter .k { color: var(--term-dim); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.meter .v { font-size: 22px; font-weight: 500; color: #f0b43a; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.meter.tx .v { color: #dfe6df; }
+.log { height: 236px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; border-top: 1px dashed #26322d; padding-top: 10px; }
+.log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log .t { color: var(--term-dim); }
+.log .s402 { color: #f0b43a; }
+.log .ok { color: #55cf9f; }
+.log .tx { color: #ffffff; font-weight: 500; }
+.channel .foot { margin-top: 12px; color: var(--term-dim); font-size: 12px; }
+
+/* Proof strip */
+.proof { border-block: 1px solid var(--line); background: var(--panel); padding-block: 22px; }
+.proof .wrap { display: flex; gap: 14px 36px; flex-wrap: wrap; align-items: baseline; }
+.proof .lab { font: 500 12px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+.proof .item { display: flex; gap: 8px; align-items: baseline; }
+.proof .item b { font: 700 22px/1 var(--display); font-variant-numeric: tabular-nums; }
+.proof .item span { color: var(--muted); font-size: 15px; }
+
+/* Sections */
+section.band { padding-block: 88px; }
+.section-head { display: grid; gap: 14px; max-width: 760px; margin-bottom: 44px; }
+
+/* Benefits */
+.benefits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1.5px solid var(--ink); }
+.benefit { padding: 26px 26px 30px 0; border-bottom: 1px solid var(--line); display: grid; gap: 10px; align-content: start; }
+.benefit + .benefit { padding-left: 26px; }
+.benefit:nth-child(3n+1) { padding-left: 0; }
+.benefit:not(:nth-child(3n)) { border-right: 1px solid var(--line); }
+.benefit .fact { font: 500 13px/1.4 var(--mono); color: var(--gold); }
+.benefit p { color: var(--muted); }
+
+/* Flow */
+.flow-band { background: var(--panel); border-block: 1px solid var(--line); }
+.flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; counter-reset: step; }
+.step { padding: 20px 18px 22px; border-left: 1px solid var(--line); display: grid; gap: 8px; align-content: start; }
+.step:first-child { border-left: 0; padding-left: 0; }
+.step .who { font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.step h3 { font-size: 18px; }
+.step h3::before { counter-increment: step; content: counter(step) " "; color: var(--gold); }
+.step p { font-size: 15px; color: var(--muted); }
+.hub { margin-top: 44px; overflow-x: auto; }
+.hub svg { display: block; width: 100%; min-width: 620px; height: auto; }
+.hub text { font-family: var(--mono); font-size: 13px; fill: var(--ink); }
+.hub .dim { fill: var(--muted); }
+.hub .edges path { stroke: var(--line); stroke-width: 1.5; fill: none; }
+.hub .dots circle { fill: var(--gold); }
+.hub .node { fill: var(--panel); stroke: var(--line); }
+.hub .core { fill: var(--ink); }
+.hub text.core-label { fill: var(--bg); font-weight: 500; }
+
+/* Use cases */
+.cases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.case { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.case .meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font: 500 12px/1 var(--mono); padding: 6px 9px; border-radius: 999px; background: var(--gold-soft); color: var(--ink); }
+.chip.alt { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.case p { color: var(--muted); }
+.case .why { font-size: 15px; border-top: 1px dashed var(--line); padding-top: 12px; color: var(--ink); }
+.case .why b { color: var(--paid); }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 48px; align-items: start; }
+.split .section-head { position: sticky; top: calc(24px + env(safe-area-inset-top, 0px)); margin-bottom: 0; }
+
+/* Developers */
+.dev { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 40px; align-items: start; }
+.code { background: var(--term); color: var(--term-ink); border-radius: 14px; padding: 20px 22px; font: 13.5px/1.65 var(--mono); overflow-x: auto; min-width: 0; }
+.code .c { color: var(--term-dim); }
+.code .g { color: #f0b43a; }
+.code .k { color: #55cf9f; }
+.code pre { margin: 0; white-space: pre; }
+.checks { display: grid; gap: 14px; margin-top: 24px; }
+.checks div { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; }
+.checks div::before { content: "✓"; color: var(--paid); font-weight: 700; }
+
+/* Trust */
+.trust { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 640px; font-size: 16px; }
+th, td { text-align: left; padding: 14px 16px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 12px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+td.chain { color: var(--paid); font-weight: 700; }
+td.trusted { color: var(--gold); font-weight: 700; }
+
+/* Roadmap */
+.road { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.road .col { border-top: 1.5px solid var(--ink); padding-top: 16px; display: grid; gap: 10px; align-content: start; }
+.road ul { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 8px; }
+
+footer { border-top: 1px solid var(--line); padding-block: 36px; color: var(--muted); font-size: 15px; }
+footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+@media (max-width: 920px) {
+  .hero .wrap, .dev, .split { grid-template-columns: minmax(0, 1fr); }
+  .split .section-head { position: static; }
+  .benefits { grid-template-columns: minmax(0, 1fr); }
+  .benefit, .benefit + .benefit { padding-left: 0; border-right: 0 !important; }
+  .flow { grid-template-columns: minmax(0, 1fr); }
+  .step, .step:first-child { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; }
+  .cases, .road { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .meters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .meter.tx { grid-column: span 2; }
+  section.band { padding-block: 64px; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="#top" aria-label="zchan home"><b>zchan</b><span>payment channels on Zcash</span></a>
+    <nav class="links" aria-label="Sections">
+      <a href="#benefits">Benefits</a>
+      <a href="#how">How it works</a>
+      <a href="#agents">Agents</a>
+      <a href="#commerce">Commerce</a>
+      <a href="#developers">Developers</a>
+      <a href="#trust">Trust model</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">For AI agents and merchants</p>
+        <h1 style="margin-top:16px">Pay per request. <em>Settle once.</em></h1>
+        <p class="lede">zchan gives every agent one Zcash payment channel and pays any merchant through it. Each payment is a signed channel state that moves in milliseconds. The chain sees the channel open and the channel close, and nothing in between.</p>
+        <div class="cta">
+          <a class="btn solid" href="#developers">Start building</a>
+          <a class="btn ghost" href="#how">See how it works</a>
+        </div>
+      </div>
+      <div class="channel" role="img" aria-label="A live channel: requests answered with HTTP 402 are paid by signed channel states. Payments count up while on-chain transactions stay at two.">
+        <div class="head"><span class="live">agent-1 → solver → merchants</span><span>zcash:testnet</span></div>
+        <div class="meters">
+          <div class="meter"><div class="k">Payments</div><div class="v" id="m-pay">4</div></div>
+          <div class="meter"><div class="k">Channel level</div><div class="v" id="m-lvl">25,200</div></div>
+          <div class="meter tx"><div class="k">Chain txs (open + close)</div><div class="v" id="m-tx">2</div></div>
+        </div>
+        <div class="log" id="log" aria-hidden="true">
+          <div class="tx">tx  bacb81f5…  channel funded · 100,000 zat · refund signed first</div>
+          <div><span class="t">GET</span>  /paid/weather  <span class="s402">402</span> · quote 20,000 + 100</div>
+          <div class="ok">  ✓ state 20,100 · merchant-a acknowledged · 200 OK</div>
+          <div><span class="t">GET</span>  /paid/news  <span class="s402">402</span> · quote 5,000 + 100</div>
+          <div class="ok">  ✓ state 25,200 · merchant-b acknowledged · 200 OK</div>
+        </div>
+        <p class="foot">Amounts in zatoshis. Fees per state: none. Fee per close: 10,000.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="proof">
+    <div class="wrap">
+      <span class="lab">Live on Zcash testnet</span>
+      <span class="item"><b class="num">71</b><span>blocks for the full run</span></span>
+      <span class="item"><b class="num">4</b><span>channels opened and closed</span></span>
+      <span class="item"><b class="num">0</b><span>transactions per payment</span></span>
+      <span class="item"><b class="num">65,000</b><span>zat paid out shielded</span></span>
+      <span class="item"><b class="num">4,524,504</b><span>refund lock height, enforced by the chain</span></span>
+    </div>
+  </div>
+
+  <section class="band" id="benefits">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Benefits</p>
+        <h2>Micropayments that make sense on chain</h2>
+        <p class="lede">A Zcash transaction costs at least 10,000 zatoshis and waits for a block. A channel spreads that cost over every payment it carries, and payments clear as fast as an HTTP round trip.</p>
+      </div>
+      <div class="benefits">
+        <div class="benefit"><span class="fact">2 transactions, any number of payments</span><h3>No transaction per payment</h3><p>Each payment raises the channel's cumulative level by one signature. Only the open and the close touch the chain, so a 100-zatoshi call is worth charging for.</p></div>
+        <div class="benefit"><span class="fact">refund signed before funding</span><h3>Funds always come back</h3><p>Before an agent funds a channel, the other side signs a time-locked refund. If anyone disappears, the agent's watcher broadcasts it at the lock height.</p></div>
+        <div class="benefit"><span class="fact">x402 v2 · MPP</span><h3>Paid in plain HTTP</h3><p>Merchants answer 402 Payment Required with a signed invoice, offered over both x402 and MPP. The client pays and retries with the merchant's own signed receipt.</p></div>
+        <div class="benefit"><span class="fact">1 agent channel → every merchant</span><h3>One channel, every merchant</h3><p>A solver keeps one channel to each merchant and nets the agents' payments through it. Agents never open a channel per seller.</p></div>
+        <div class="benefit"><span class="fact">Ironwood cooperative close</span><h3>Shielded payouts</h3><p>At the end of the day a merchant can close cooperatively and receive its share at a shielded Ironwood address.</p></div>
+        <div class="benefit"><span class="fact">--upstream · --routes</span><h3>Gate any API, unchanged</h3><p>Proxy mode puts an existing service behind payment. Set a price per path; zchan answers 402, checks payment, and forwards the request.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band flow-band" id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How a payment works</p>
+        <h2>Five messages, no block to wait for</h2>
+      </div>
+      <div class="flow">
+        <div class="step"><span class="who">Merchant</span><h3>Offer</h3><p>A request without payment gets 402 and a fresh invoice signed by the merchant.</p></div>
+        <div class="step"><span class="who">Solver</span><h3>Quote</h3><p>The solver checks the invoice and its liquidity, then signs a quote: amount plus fee.</p></div>
+        <div class="step"><span class="who">Agent</span><h3>Sign</h3><p>The agent signs its channel's next cumulative state and sends it with a payment id that makes retries safe.</p></div>
+        <div class="step"><span class="who">Solver → merchant</span><h3>Forward</h3><p>The solver raises its own channel to the merchant by the invoice amount. The merchant signs an acknowledgment.</p></div>
+        <div class="step"><span class="who">Agent → merchant</span><h3>Fetch</h3><p>The agent repeats the request with the acknowledgment. The merchant serves it once.</p></div>
+      </div>
+      <div class="hub" aria-label="Hub diagram: agents each hold one channel to the solver; the solver holds one channel to each merchant.">
+        <svg viewBox="0 0 960 230" xmlns="http://www.w3.org/2000/svg">
+          <g class="edges">
+            <path d="M150 50 C 300 50, 330 115, 430 115"/><path d="M150 115 L 430 115"/><path d="M150 180 C 300 180, 330 115, 430 115"/>
+            <path d="M530 115 C 630 115, 660 50, 810 50"/><path d="M530 115 L 810 115"/><path d="M530 115 C 630 115, 660 180, 810 180"/>
+          </g>
+          <g class="dots"><circle cx="290" cy="76" r="4"/><circle cx="290" cy="115" r="4"/><circle cx="290" cy="154" r="4"/><circle cx="670" cy="76" r="4"/><circle cx="670" cy="115" r="4"/><circle cx="670" cy="154" r="4"/></g>
+          <g>
+            <rect x="40" y="32" width="110" height="36" rx="8" class="node"/><text x="95" y="55" text-anchor="middle">agent-1</text>
+            <rect x="40" y="97" width="110" height="36" rx="8" class="node"/><text x="95" y="120" text-anchor="middle">agent-2</text>
+            <rect x="40" y="162" width="110" height="36" rx="8" class="node"/><text x="95" y="185" text-anchor="middle">agent-3</text>
+            <rect x="430" y="88" width="100" height="54" rx="10" class="core"/><text x="480" y="120" text-anchor="middle" class="core-label">solver</text>
+            <rect x="810" y="32" width="120" height="36" rx="8" class="node"/><text x="870" y="55" text-anchor="middle">merchant-a</text>
+            <rect x="810" y="97" width="120" height="36" rx="8" class="node"/><text x="870" y="120" text-anchor="middle">merchant-b</text>
+            <rect x="810" y="162" width="120" height="36" rx="8" class="node"/><text x="870" y="185" text-anchor="middle">merchant-c</text>
+            <text class="dim" x="290" y="222" text-anchor="middle">one channel per agent · agent pays</text>
+            <text class="dim" x="670" y="222" text-anchor="middle">one channel per merchant · solver pays</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="agents">
+    <div class="wrap split">
+      <div class="section-head">
+        <p class="eyebrow">Agentic use cases</p>
+        <h2>Agents that buy what they need, call by call</h2>
+        <p class="lede">An agent with a funded channel can pay any zchan merchant without an account, an API key or a card on file. Its exposure is capped by the channel's capacity.</p>
+      </div>
+      <div class="cases">
+        <article class="case"><div class="meta"><span class="chip">x402 · MPP</span><span class="chip alt">~100–5,000 zat a call</span></div><h3>Pay-per-call APIs</h3><p>Search, market data, geocoding, inference. The provider prices each path, and the agent pays only for the calls it makes.</p><p class="why"><b>Why channels:</b> per-call prices are far below one on-chain fee.</p></article>
+        <article class="case"><div class="meta"><span class="chip">MCP</span><span class="chip alt">per tool call</span></div><h3>Paid tools for assistants</h3><p>MCP servers charge per tool invocation, so a specialized tool can be monetized without subscriptions or key management.</p><p class="why"><b>Why channels:</b> one agent channel pays every tool server through the solver.</p></article>
+        <article class="case"><div class="meta"><span class="chip">budgets</span><span class="chip alt">capacity = limit</span></div><h3>Data procurement with a budget</h3><p>A research agent buys articles, datasets and reports from many sources within a fixed spend.</p><p class="why"><b>Why channels:</b> the channel's capacity is a hard spending cap the agent cannot exceed.</p></article>
+        <article class="case"><div class="meta"><span class="chip">agent ↔ agent</span><span class="chip alt">service fees</span></div><h3>Agents paying agents</h3><p>A planning agent hires specialist agents (translation, code review, image work) and pays each per task.</p><p class="why"><b>Why channels:</b> a new counterparty needs no new channel, only a solver that pays it.</p></article>
+        <article class="case"><div class="meta"><span class="chip">metered</span><span class="chip alt">per second, per MB</span></div><h3>Compute and storage metering</h3><p>GPU minutes, sandbox time and storage are billed as they are used rather than in prepaid blocks.</p><p class="why"><b>Why channels:</b> states update as often as the meter ticks, at no chain cost.</p></article>
+        <article class="case"><div class="meta"><span class="chip">shielded payout</span><span class="chip alt">Ironwood</span></div><h3>Private revenue for providers</h3><p>Providers receive their day's earnings at a shielded address when the channel closes.</p><p class="why"><b>Why channels:</b> one close, one shielded output, instead of a public trail of every sale.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band flow-band" id="commerce">
+    <div class="wrap split">
+      <div class="section-head">
+        <p class="eyebrow">Real-time commerce</p>
+        <h2>Checkout at the speed of a tap</h2>
+        <p class="lede">The same channels work at a counter. A merchant shows a QR code that carries only an invoice reference, and the buyer approves on their phone. The merchant sees "Paid" in about a second, without waiting for a block.</p>
+      </div>
+      <div class="cases">
+        <article class="case"><div class="meta"><span class="chip">QR checkout</span><span class="chip alt">≈1 s to paid</span></div><h3>Counters and cafés</h3><p>The POS shows the amount and a QR code. The buyer's agent fetches and verifies the signed invoice, shows the merchant, amount and fee, and pays on approval.</p><p class="why"><b>Why channels:</b> confirmation in one round trip instead of one block.</p></article>
+        <article class="case"><div class="meta"><span class="chip">machines</span><span class="chip alt">per kWh, per minute</span></div><h3>Charging, Wi-Fi, vending, parking</h3><p>A machine meters usage and the buyer's channel advances as it runs. Stopping the session stops the payments.</p><p class="why"><b>Why channels:</b> pay-as-you-go without prepaid credit or a card hold.</p></article>
+        <article class="case"><div class="meta"><span class="chip">streaming</span><span class="chip alt">per minute</span></div><h3>Media and live events</h3><p>Pay per minute watched, per article read or per tip sent during a stream, with no minimum top-up.</p><p class="why"><b>Why channels:</b> payments small enough to match the content.</p></article>
+        <article class="case"><div class="meta"><span class="chip">netting</span><span class="chip alt">daily settlement</span></div><h3>Suppliers and marketplaces</h3><p>A marketplace operator acts as the solver, netting many buyers' payments into one channel per seller and settling daily.</p><p class="why"><b>Why channels:</b> one transaction per seller per day, with every payment reconciled.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="developers">
+    <div class="wrap dev">
+      <div>
+        <p class="eyebrow">Developers</p>
+        <h2 style="margin-top:14px">Put your API behind payment in one command</h2>
+        <p class="lede" style="margin-top:16px">Proxy mode needs no code change in your service. Clients pay with x402 v2 or MPP, whichever they speak.</p>
+        <div class="checks">
+          <div><span>Prices per path, with prefix matches like <span class="mono">/api/*</span></span></div>
+          <div><span>Payment headers stripped before your service sees the request</span></div>
+          <div><span>Each invoice served once; replays, tampered and mismatched credentials refused</span></div>
+          <div><span>An upstream error releases the invoice so the client can retry</span></div>
+          <div><span>Idempotent payments that survive a solver crash or a merchant outage</span></div>
+        </div>
+      </div>
+      <div class="code" role="region" aria-label="Command examples" tabindex="0">
+<pre><span class="c"># Merchant: gate an existing API</span>
+<span class="k">zchan-merchant</span> --upstream http://localhost:3000 \
+  --routes <span class="g">'/api/search=3000,/api/*=500'</span> \
+  --solver https://solver.example --admin-token "$TOKEN"
+
+<span class="c"># Agent: open a channel once</span>
+<span class="k">zchan-agent</span> open --capacity <span class="g">100000</span> --lock-blocks 2000
+
+<span class="c"># Agent: pay and fetch over x402 v2 ...</span>
+<span class="k">zchan-agent</span> get https://api.example/api/search?q=zec
+
+<span class="c"># ... or over MPP, any method</span>
+<span class="k">zchan-agent</span> get https://api.example/api/echo \
+  --mpp --method POST --body 'hello'
+
+<span class="c"># 402 response offers both protocols</span>
+HTTP/1.1 402 Payment Required
+PAYMENT-REQUIRED: eyJ4NDAyVmVyc2lvbiI6Mi…
+WWW-Authenticate: Payment method="zchannel", intent="charge", …</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="band flow-band" id="trust">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Trust model</p>
+        <h2>What the chain enforces, and what it doesn't</h2>
+        <p class="lede">zchan states its guarantees plainly. Funds locked in channels are protected by the chain. The solver is trusted with one payment per agent at a time.</p>
+      </div>
+      <div class="trust">
+        <table>
+          <thead><tr><th>Exposure</th><th>Protected by</th><th>Bound</th></tr></thead>
+          <tbody>
+            <tr><td>An agent's unspent channel balance</td><td class="chain">The chain: presigned refund</td><td>Returned at the lock height</td></tr>
+            <tr><td>What a merchant has acknowledged</td><td class="chain">The chain: it holds the signed state</td><td>Merchant closes before the deadline</td></tr>
+            <tr><td>Solver liquidity in merchant channels</td><td class="chain">The chain: presigned refund</td><td>Returned at the lock height</td></tr>
+            <tr><td>Agent paid, solver does not forward</td><td class="trusted">Trust in the solver</td><td>One payment in flight per agent</td></tr>
+            <tr><td>Agent leg and merchant leg together</td><td class="trusted">Not atomic</td><td>Hash-locked states are on the roadmap</td></tr>
+            <tr><td>Funding and transparent closes</td><td class="trusted">Public on chain</td><td>Merchant payouts can close to Ironwood</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Status</p>
+        <h2>Running on testnet today</h2>
+      </div>
+      <div class="road">
+        <div class="col"><h3>Live</h3><ul><li>Channels with refunds signed before funding</li><li>Solver, merchants and agents with crash recovery</li><li>x402 v2 and MPP payments; QR checkout</li><li>Proxy mode for existing APIs</li><li>Shielded Ironwood payouts</li></ul></div>
+        <div class="col"><h3>Next</h3><ul><li>TypeScript and Python clients</li><li>An MCP payment tool for assistants</li><li>Prices set in USD, converted at invoice time</li><li>Automatic channel top-ups and rotation</li><li>Registering Zcash with x402 and MPP</li></ul></div>
+        <div class="col"><h3>Before mainnet</h3><ul><li>External review of channel code and key handling</li><li>Hardware keys for solvers</li><li>Deeper confirmation requirements</li><li>Legal review of operating a solver</li><li>Mainnet stays disabled in code until then</li></ul></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span><b style="color:var(--ink)">zchan</b> · Zcash payment channels for agents and commerce</span>
+    <span class="mono">Built for Zecathon 2026 · testnet blocks 4,524,435–4,524,506</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var log = document.getElementById('log');
+  var pay = document.getElementById('m-pay'), lvl = document.getElementById('m-lvl');
+  if (!log || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var calls = [
+    ['/api/search?q=zec', 'merchant-d', 3000], ['/paid/weather', 'merchant-a', 2000],
+    ['/api/echo', 'merchant-d', 500], ['/tools/translate', 'merchant-e', 800],
+    ['/data/ohlc?pair=ZEC', 'merchant-f', 1200], ['/api/search?q=ironwood', 'merchant-d', 3000],
+    ['/gpu/minute', 'merchant-g', 4000], ['/paid/news', 'merchant-b', 5000]
+  ];
+  var n = 4, level = 25200, i = 0, fee = 100;
+  function fmt(x) { return x.toLocaleString('en-US'); }
+  function line(html, cls) {
+    var d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.innerHTML = html;
+    log.appendChild(d);
+    while (log.children.length > 12) log.removeChild(log.firstChild);
+  }
+  function tick() {
+    var c = calls[i++ % calls.length];
+    line('<span class="t">GET</span>  ' + c[0] + '  <span class="s402">402</span> · quote ' + fmt(c[2]) + ' + ' + fee);
+    setTimeout(function () {
+      level += c[2] + fee; n += 1;
+      line('  ✓ state ' + fmt(level) + ' · ' + c[1] + ' acknowledged · 200 OK', 'ok');
+      pay.textContent = fmt(n); lvl.textContent = fmt(level);
+      if (level > 90000) { level = 25200; n = 4; }
+    }, 700);
+  }
+  setInterval(tick, 1900);
+})();
+</script>

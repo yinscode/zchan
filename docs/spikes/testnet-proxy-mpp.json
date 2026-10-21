@@ -1,0 +1,100 @@
+{
+  "network": "zcash:testnet",
+  "merchant_channel": "7efa2dd0e6275829ee040d9f4b741293e0f7903338f2714e743d86d1c4b62739:0",
+  "agent_channel": {
+    "id": "54c85351af8bdaa4b54dede4dd923ce6b100c9d19ddc0987eba52a8fe31dd00a:0",
+    "funding_height": 4524605,
+    "capacity": 100000
+  },
+  "payments": [
+    {
+      "protocol": "x402",
+      "status": 200,
+      "ack": {
+        "amount": 3000,
+        "channel_id": "7efa2dd0e6275829ee040d9f4b741293e0f7903338f2714e743d86d1c4b62739:0",
+        "cumulative": 3000,
+        "invoice_id": "2bbe8463732cf05301ef3d4db246d56e",
+        "merchant_id": "merchant-d"
+      },
+      "receipt": null,
+      "settlement": {
+        "amount": "3000",
+        "network": "zcash:testnet",
+        "success": true,
+        "transaction": ""
+      },
+      "upstream_body": {
+        "q": "zec"
+      }
+    },
+    {
+      "protocol": "mpp-get",
+      "status": 200,
+      "ack": {
+        "amount": 3000,
+        "channel_id": "7efa2dd0e6275829ee040d9f4b741293e0f7903338f2714e743d86d1c4b62739:0",
+        "cumulative": 6000,
+        "invoice_id": "a609491ebfc42b5454d69306c92bf27f",
+        "merchant_id": "merchant-d"
+      },
+      "receipt": {
+        "channelId": "7efa2dd0e6275829ee040d9f4b741293e0f7903338f2714e743d86d1c4b62739:0",
+        "cumulative": 6000,
+        "method": "zchannel",
+        "reference": "a609491ebfc42b5454d69306c92bf27f",
+        "status": "success",
+        "timestamp": "2026-10-21T05:59:53Z"
+      },
+      "settlement": null,
+      "upstream_body": {
+        "q": "mpp"
+      }
+    },
+    {
+      "protocol": "mpp-post",
+      "status": 200,
+      "ack": {
+        "amount": 500,
+        "channel_id": "7efa2dd0e6275829ee040d9f4b741293e0f7903338f2714e743d86d1c4b62739:0",
+        "cumulative": 6500,
+        "invoice_id": "43f1981034ed5f90ce7514a9ca426562",
+        "merchant_id": "merchant-d"
+      },
+      "receipt": {
+        "channelId": "7efa2dd0e6275829ee040d9f4b741293e0f7903338f2714e743d86d1c4b62739:0",
+        "cumulative": 6500,
+        "method": "zchannel",
+        "reference": "43f1981034ed5f90ce7514a9ca426562",
+        "status": "success",
+        "timestamp": "2026-10-21T05:59:53Z"
+      },
+      "settlement": null,
+      "upstream_body": {
+        "echo": "hello from testnet"
+      }
+    }
+  ],
+  "closes": {
+    "merchant-d": {
+      "txid": "95a278ab5f4c895f5c88a91d74d47aef7ec1bbaa14e963738bcdf9428dbd206f",
+      "height": 4524606,
+      "outputs_zat": [
+        6500,
+        83500
+      ]
+    },
+    "agent-1": {
+      "txid": "23c74660f42db0a9ead0d4beb9b45ed3b76397c603c34cddbc52eb7cce71ef3e",
+      "height": 4524606,
+      "outputs_zat": [
+        6800,
+        83200
+      ]
+    }
+  },
+  "funding_heights": {
+    "merchant-d": 4524602,
+    "agent-1": 4524605
+  }
+}
