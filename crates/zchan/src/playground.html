@@ -22,15 +22,6 @@
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: dark;
 }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #FFFFFF; --raise: #FAFAFA; --card: #F2F2F2; --line: #EAEAEA; --line-hi: #CFCFCF;
-    --fg: #171717; --fg2: #666666; --fg3: #737373;
-    --gold: #F4BC45; --gold-text: #B97700; --on-gold: #171717;
-    --mint: #1A8754; --blue: #2563EB; --coral: #C8432B;
-    color-scheme: light;
-  }
-}
 :root[data-theme="light"] {
   --bg: #FFFFFF; --raise: #FAFAFA; --card: #F2F2F2; --line: #EAEAEA; --line-hi: #CFCFCF;
   --fg: #171717; --fg2: #666666; --fg3: #737373;
@@ -105,7 +96,10 @@ button:disabled { opacity: .38; cursor: not-allowed; }
 .busy::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-right: 8px; animation: pulse 1s infinite alternate; }
 .why { font-size: 13px; color: var(--fg3); max-width: 70ch; }
 .err { color: var(--coral); font-size: 14px; }
-.txl { font: 12px/1.4 var(--mono); color: var(--fg3); }
+.txl { font: 12px/1.5 var(--mono); color: var(--fg3); word-break: break-all; }
+.txl span { color: var(--fg2); }
+#o1, #o2, #o3, #o4 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+#o1:empty, #o2:empty, #o3:empty, #o4:empty { display: none; }
 .meter { height: 6px; border-radius: 3px; background: var(--card); overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--gold); width: 0; transition: width .24s; }
 #lvltext { font: 13px/1.3 var(--mono); color: var(--fg2); font-variant-numeric: tabular-nums; }
@@ -225,9 +219,8 @@ footer p { max-width: 80ch; }
   <footer>
     <p>Testnet funds only, one grant per session. The solver is trusted with one payment at a time; the chain enforces refunds and closes.</p>
     <div class="theme" role="group" aria-label="Theme">
-      <button type="button" id="theme-system" data-theme-set="system" aria-pressed="true">System</button>
+            <button type="button" id="theme-dark" data-theme-set="dark" aria-pressed="true">Dark</button>
       <button type="button" id="theme-light" data-theme-set="light" aria-pressed="false">Light</button>
-      <button type="button" id="theme-dark" data-theme-set="dark" aria-pressed="false">Dark</button>
     </div>
   </footer>
 </div>
@@ -257,8 +250,9 @@ footer p { max-width: 80ch; }
   }
   function txLink(tx) {
     if (!tx || !tx.txid) return '';
-    var t = 'tx ' + esc(tx.txid.slice(0, 8)) + '…';
-    return '<div class="txl">' + (info && info.explorer ? '<a href="' + esc(info.explorer + tx.txid) + '" target="_blank" rel="noopener">' + t + '</a>' : t) + '</div>';
+    var id = esc(tx.txid);
+    return '<div class="txl">tx <span>' + (info && info.explorer ? '<a href="' + esc(info.explorer + tx.txid) + '" target="_blank" rel="noopener">' + id + '</a>' : id) + '</span>' +
+      (tx.height ? ' · block ' + Number(tx.height).toLocaleString('en-US') : '') + '</div>';
   }
   function chips(items) {
     return '<div class="facts">' + items.filter(Boolean).map(function (i) { return '<span class="chip ' + (i[1] || '') + '">' + i[0] + '</span>'; }).join('') + '</div>';
@@ -328,7 +322,7 @@ footer p { max-width: 80ch; }
       '<div class="why">Sent in about a second; now a miner has to include it. On testnet today most blocks come from a miner that rarely includes transactions, so this often takes one to three minutes. Payments never wait for this.</div>' : ''; };
     $('o1').innerHTML = b('shielding') + step('shield-in', s1, s1 && s1.ok ? [['You received ' + zat(s1.result.amount) + ', shielded', 'gold'], ['Your balance: ' + zat(state.shielded)]] : []);
     var low = state.shielded < ((info && info.min_open) || 0) && !(ch && ch.status === 'open') && !busy && state.granted;
-    $('o2').innerHTML = b('opening') + (low ? '<div class="err">Your balance (' + zat(state.shielded) + ') has been spent on payments and fees: another channel needs ' + zat(info.min_open) + '.</div><button class="primary" id="fresh" style="margin-top:10px">Start a new session</button>' : '') + step('open', low && s2 && !s2.ok ? null : s2, s2 && s2.ok ? [['Channel of ' + zat(s2.result.capacity), 'gold'], ['Safety refund from block ' + Number(s2.result.lock_height).toLocaleString('en-US')]] : []);
+    $('o2').innerHTML = b('opening') + (low ? '<div class="err">Your balance (' + zat(state.shielded) + ') has been spent on payments and fees: another channel needs ' + zat(info.min_open) + '.</div><button class="primary" id="fresh">Start a new session</button>' : '') + step('open', low && s2 && !s2.ok ? null : s2, s2 && s2.ok ? [['Channel of ' + zat(s2.result.capacity), 'gold'], ['Safety refund from block ' + Number(s2.result.lock_height).toLocaleString('en-US')]] : []);
     $('o4').innerHTML = b('closing') + step('close', s4, s4 && s4.ok ? [['Your change: ' + zat(s4.result.change_note) + ', back in your shielded balance', 'gold']] : []);
     if (ch) {
       var pct = Math.min(100, Math.round(100 * ch.level / ch.capacity));
@@ -399,15 +393,15 @@ footer p { max-width: 80ch; }
     location.href = location.pathname;
   });
 
-  // Theme: system, light or dark; remembered in this browser where storage works.
+  // Theme: dark by default, light on request; remembered in this browser where storage works.
   var root = document.documentElement;
   function setTheme(t) {
-    if (t === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    root.setAttribute('data-theme', t);
     document.querySelectorAll('[data-theme-set]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.themeSet === t)); });
   }
   var saved = null;
   try { saved = localStorage.getItem('zchan-theme'); } catch (e) {}
-  if (saved === 'light' || saved === 'dark') setTheme(saved);
+  setTheme(saved === 'light' ? 'light' : root.getAttribute('data-theme') === 'light' && !saved ? 'light' : 'dark');
   document.querySelectorAll('[data-theme-set]').forEach(function (b) {
     b.addEventListener('click', function () { setTheme(b.dataset.themeSet); try { localStorage.setItem('zchan-theme', b.dataset.themeSet); } catch (e) {} });
   });

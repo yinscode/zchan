@@ -19,15 +19,6 @@
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: dark;
 }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #FFFFFF; --raise: #FAFAFA; --card: #F2F2F2; --line: #EAEAEA; --line-hi: #CFCFCF;
-    --fg: #171717; --fg2: #666666; --fg3: #737373;
-    --gold: #F4BC45; --gold-text: #B97700; --on-gold: #171717;
-    --mint: #1A8754; --blue: #2563EB; --coral: #C8432B;
-    color-scheme: light;
-  }
-}
 :root[data-theme="light"] {
   --bg: #FFFFFF; --raise: #FAFAFA; --card: #F2F2F2; --line: #EAEAEA; --line-hi: #CFCFCF;
   --fg: #171717; --fg2: #666666; --fg3: #737373;
@@ -100,7 +91,9 @@ details.menu .panel a:hover { background: var(--card); }
 .hero { border-top: 0; padding-block: 96px 88px; text-align: center; }
 .hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; justify-items: center; }
 .hero .rail { margin-bottom: 28px; }
-.hero .sub { font-size: 20px; color: var(--fg2); max-width: 34ch; }
+.hero .sub { font-size: 20px; color: var(--fg2); max-width: 44ch; }
+.hero .label { margin-bottom: -12px; }
+.protos { justify-content: center; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .cmd { display: flex; align-items: center; gap: 12px; max-width: 100%; min-width: 0; border: 1px solid var(--line-hi); border-radius: 8px; padding: 8px 8px 8px 16px; background: var(--raise); font: 14px/1.4 var(--mono); }
 .cmd .p { color: var(--fg3); }
@@ -225,7 +218,7 @@ details.menu .panel a:hover { background: var(--card); }
 .sec ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; color: var(--fg2); font-size: 15px; }
 .sec li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; }
 .sec li::before { content: ""; width: 7px; height: 7px; margin-top: 8px; border-radius: 50%; }
-.sec .chain li::before { background: var(--mint); }
+.sec .enforced li::before { background: var(--mint); }
 .sec .trust li::before { background: var(--coral); }
 .sec .road li::before { border: 1px solid var(--fg3); }
 .sec .road li.live::before { background: var(--mint); border-color: var(--mint); }
@@ -316,8 +309,10 @@ footer .base { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--
         <span class="st">03</span><span class="seg"></span>
         <span class="end"><span>SETTLE</span></span>
       </div>
-      <h1>Pay per request.<br>Settle once.</h1>
-      <p class="sub">Signed payments for agents and services, settled privately through Zcash.</p>
+      <span class="label">Pay per request · settle once</span>
+      <h1>Micropayments<br>in milliseconds.</h1>
+      <p class="sub">Zero network fees per payment. Agents pay any API over x402 or MPP from one Zcash channel, and settle privately once the work is done.</p>
+      <div class="chips protos" aria-label="Supported"><span class="chip">x402 v2</span><span class="chip">MPP</span><span class="chip">Zcash Ironwood</span></div>
       <div class="cta">
         <a class="btn primary" href="https://165-22-48-127.sslip.io/play">Open Playground</a>
         <a class="btn" href="#protocol">How a payment works</a>
@@ -543,7 +538,7 @@ WWW-Authenticate: Payment method="zchannel", intent="charge", …</pre>
         <h2>What the chain enforces, and what it doesn't.</h2>
       </div>
       <div class="sec">
-        <div class="col chain">
+        <div class="col enforced">
           <h3>Enforced by the chain</h3>
           <ul>
             <li><span>An agent's unspent balance: a refund signed before funding, valid at the lock height.</span></li>
@@ -576,7 +571,7 @@ WWW-Authenticate: Payment method="zchannel", intent="charge", …</pre>
       <div class="rail" aria-hidden="true">
         <span class="end"></span><span class="seg"></span><span class="st">01</span><span class="seg"></span><span class="st">02</span><span class="seg"></span><span class="st">03</span><span class="seg"></span><span class="end"></span>
       </div>
-      <h2>Pay in milliseconds.<br>Settle when the work is done.</h2>
+      <h2>Pay per request.<br>Settle once.</h2>
       <p>Shield in, open a channel, pay three merchants and settle, on Zcash testnet with an agent of your own.</p>
       <div class="cta"><a class="btn primary" href="https://165-22-48-127.sslip.io/play">Open Playground</a><a class="btn" href="#developers">Start building</a></div>
     </div>
@@ -590,9 +585,8 @@ WWW-Authenticate: Payment method="zchannel", intent="charge", …</pre>
         <a class="mark" href="#top" aria-label="Zchan home"><b>Zchan</b><span class="glyph" aria-hidden="true"></span></a>
         <p>Payment channels on Zcash for agents and real-time commerce.</p>
         <div class="theme" role="group" aria-label="Theme">
-          <button type="button" id="theme-system" data-theme-set="system" aria-pressed="true">System</button>
+                    <button type="button" id="theme-dark" data-theme-set="dark" aria-pressed="true">Dark</button>
           <button type="button" id="theme-light" data-theme-set="light" aria-pressed="false">Light</button>
-          <button type="button" id="theme-dark" data-theme-set="dark" aria-pressed="false">Dark</button>
         </div>
       </div>
       <div><h4>Product</h4><ul><li><a href="#product">How it works</a></li><li><a href="#protocol">Protocol</a></li><li><a href="#privacy">Privacy</a></li><li><a href="#use-cases">Use cases</a></li></ul></div>
@@ -618,15 +612,15 @@ WWW-Authenticate: Payment method="zchannel", intent="charge", …</pre>
     });
   });
 
-  // Theme: system, light or dark; remembered in this browser where storage works.
+  // Theme: dark by default, light on request; remembered in this browser where storage works.
   var root = document.documentElement;
   function setTheme(t) {
-    if (t === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    root.setAttribute('data-theme', t);
     document.querySelectorAll('[data-theme-set]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.themeSet === t)); });
   }
   var saved = null;
   try { saved = localStorage.getItem('zchan-theme'); } catch (e) {}
-  if (saved === 'light' || saved === 'dark') setTheme(saved);
+  setTheme(saved === 'light' ? 'light' : root.getAttribute('data-theme') === 'light' && !saved ? 'light' : 'dark');
   document.querySelectorAll('[data-theme-set]').forEach(function (b) {
     b.addEventListener('click', function () { setTheme(b.dataset.themeSet); try { localStorage.setItem('zchan-theme', b.dataset.themeSet); } catch (e) {} });
   });
