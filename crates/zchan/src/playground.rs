@@ -5,7 +5,7 @@
 //! walks it through the private path: shield in (the house wallet sends it Ironwood
 //! funds), open a channel funded from those notes, pay merchants over x402 or MPP (each
 //! payment shown step by step), and shield out (a cooperative close paying both sides to
-//! Ironwood). Every transaction is shown with its transparent inputs and outputs.
+//! Ironwood). Each transaction is shown with what the chain learns from it.
 //!
 //! Limits: one grant per session, `max_sessions` sessions, small capacities. The house
 //! wallet's sends are serialized and each waits for a block.
@@ -54,7 +54,17 @@ struct Session {
     /// Shielded balance, refreshed after each job (scanning on every poll would be slow).
     shielded: u64,
     busy: Option<String>,
+    /// When the running step started: (unix seconds, chain tip), so the page can show the wait.
+    busy_since: Option<(u64, u32)>,
     log: Vec<Value>,
+}
+
+/// The smallest channel the playground opens.
+const MIN_CAPACITY: u64 = 20_000;
+
+/// The shielded balance a channel open needs: the smallest capacity, its fee and the change.
+fn min_open() -> u64 {
+    MIN_CAPACITY + zchan_tx::notes::zip317_fee(0, 1, 2, 1) + crate::channel::MIN_CHANGE
 }
 
 pub struct Playground {
@@ -93,7 +103,7 @@ async fn info(State(pg): State<Arc<Playground>>) -> ApiResult<Json<Value>> {
         "network": pg.house.network, "solver": pg.settings.solver,
         "merchants": pg.settings.merchants.iter().map(|(n, u)| json!({"name": n, "url": u})).collect::<Vec<_>>(),
         "grant": pg.settings.grant, "capacity": pg.settings.capacity, "house_shielded": shielded,
-        "explorer": pg.settings.explorer, "sessions": pg.sessions.lock().unwrap().len(), "max_sessions": pg.settings.max_sessions,
+        "explorer": pg.settings.explorer, "min_open": min_open(), "sessions": pg.sessions.lock().unwrap().len(), "max_sessions": pg.settings.max_sessions,
     })))
 }
 
@@ -123,7 +133,7 @@ async fn get_session(pg: &Playground, id: &str) -> ApiResult<Arc<tokio::sync::Mu
         .read(|c| crate::store::meta_get(c, "playground_log"))?
         .and_then(|l| serde_json::from_str(&l).ok())
         .unwrap_or_default();
-    let s = Arc::new(tokio::sync::Mutex::new(Session { agent, granted: true, shielded, busy: None, log }));
+    let s = Arc::new(tokio::sync::Mutex::new(Session { agent, granted: true, shielded, busy: None, busy_since: None, log }));
     pg.sessions.lock().unwrap().entry(id.to_string()).or_insert(s.clone());
     Ok(s)
 }
@@ -141,7 +151,7 @@ async fn new_session(State(pg): State<Arc<Playground>>) -> ApiResult<Json<Value>
     };
     let ctx = Ctx::new(cfg).await?;
     let agent = Arc::new(Agent::new(ctx, &pg.settings.solver));
-    let s = Session { agent, granted: false, shielded: 0, busy: None, log: vec![] };
+    let s = Session { agent, granted: false, shielded: 0, busy: None, busy_since: None, log: vec![] };
     pg.sessions.lock().unwrap().insert(id.clone(), Arc::new(tokio::sync::Mutex::new(s)));
     Ok(Json(json!({"id": id})))
 }
@@ -159,9 +169,17 @@ async fn session(State(pg): State<Arc<Playground>>, Path(id): Path<String>) -> A
             "remaining": payer::remaining(&a.ctx, r).unwrap_or(0),
         })
     });
+    // How long the running step has waited, and how many blocks have arrived meanwhile.
+    let wait = match s.busy_since {
+        Some((t, h)) => {
+            let tip = pg.house.tip().await.unwrap_or(h);
+            json!({"seconds": now().saturating_sub(t), "blocks": tip.saturating_sub(h)})
+        }
+        None => Value::Null,
+    };
     Ok(Json(json!({
         "id": id, "name": a.ctx.cfg.name, "shielded": shielded, "granted": s.granted,
-        "channel": channel, "busy": s.busy, "log": s.log,
+        "channel": channel, "busy": s.busy, "wait": wait, "log": s.log,
     })))
 }
 
@@ -200,6 +218,7 @@ where
         let shielded: u64 = agent.ctx.shielded_notes().await.map(|n| n.iter().map(|n| n.value()).sum()).unwrap_or(0);
         let mut g = s.lock().await;
         g.busy = None;
+        g.busy_since = None;
         g.shielded = shielded;
         g.log.push(match out {
             Ok(v) => json!({"kind": label, "at": now(), "ok": true, "result": v}),
@@ -209,12 +228,14 @@ where
     });
 }
 
-async fn start(s: &Arc<tokio::sync::Mutex<Session>>, label: &str) -> ApiResult<()> {
+async fn start(pg: &Playground, s: &Arc<tokio::sync::Mutex<Session>>, label: &str) -> ApiResult<()> {
+    let tip = pg.house.tip().await.unwrap_or(0);
     let mut g = s.lock().await;
     if let Some(b) = &g.busy {
         return Err(err(StatusCode::CONFLICT, format!("still {b}")));
     }
     g.busy = Some(label.into());
+    g.busy_since = Some((now(), tip));
     Ok(())
 }
 
@@ -224,7 +245,7 @@ async fn shield_in(State(pg): State<Arc<Playground>>, Path(id): Path<String>) ->
     if s.lock().await.granted {
         return Err(err(StatusCode::CONFLICT, "this session already received its grant"));
     }
-    start(&s, "shielding funds in").await?;
+    start(&pg, &s, "shielding funds in").await?;
     s.lock().await.granted = true;
     let (house, grant) = (pg.house.clone(), pg.settings.grant);
     spawn_job(s, "shield-in", move |agent| async move {
@@ -237,14 +258,17 @@ async fn shield_in(State(pg): State<Arc<Playground>>, Path(id): Path<String>) ->
 
 async fn open(State(pg): State<Arc<Playground>>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     let s = get_session(&pg, &id).await?;
-    start(&s, "opening a channel").await?;
+    start(&pg, &s, "opening a channel").await?;
     let (max_cap, lock) = (pg.settings.capacity, pg.settings.lock_blocks);
     spawn_job(s, "open", move |agent| async move {
         // The default capacity, or as much as the balance covers after the fee and change.
         let have: u64 = agent.ctx.shielded_notes().await?.iter().map(|n| n.value()).sum();
         let cap = max_cap.min(have.saturating_sub(zchan_tx::notes::zip317_fee(0, 1, 2, 1) + crate::channel::MIN_CHANGE));
-        if cap < 20_000 {
-            return Err(Error::Funding(format!("shielded balance {have} is too small to open a channel")));
+        if cap < MIN_CAPACITY {
+            return Err(Error::Funding(format!(
+                "your balance is {have} zat; another channel needs {} ({MIN_CAPACITY} to spend, its fee and change). Start a new session for a fresh grant.",
+                min_open()
+            )));
         }
         let row = agent.open_shielded(cap, lock).await?;
         let txid = row.id.split(':').next().unwrap_or_default().to_string();
@@ -305,7 +329,7 @@ async fn pay(State(pg): State<Arc<Playground>>, Path(id): Path<String>, Json(req
 /// Shield out: a cooperative close the agent starts, both sides paid to Ironwood.
 async fn close(State(pg): State<Arc<Playground>>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     let s = get_session(&pg, &id).await?;
-    start(&s, "closing the channel").await?;
+    start(&pg, &s, "closing the channel").await?;
     spawn_job(s, "close", move |agent| async move {
         let ch = agent.channel()?;
         let before: u64 = agent.ctx.shielded_notes().await?.iter().map(|n| n.value()).sum();

@@ -102,7 +102,7 @@ It then serves the playground on port 8080 (`PORT=` to change it). Each visitor 
 | 3 · Pay merchants | pick x402 or MPP for each of four calls (two proxied, one POST) | each payment's trace in milliseconds: 402 offers, quote, signed state, merchant receipt, retry, 200 with `PAYMENT-RESPONSE` or `Payment-Receipt`; the "On-chain payments" counter stays 0 |
 | 4 · Shield out | one click, after more than 10,000 zat of payments | the change note, found with the agent's own viewing key; "Chain sees: nothing about who got what" |
 
-Each on-chain step links its transaction in small type underneath; opens and closes each wait for one block (Zcash targets 75 s; testnet blocks recently averaged about 25 s), and the playground checks for it every 3 s.
+Each on-chain step links its transaction in small type underneath and shows a live timer while it waits. A timed testnet run (Oct 26) put about 1–2 s of each step in zchan (proving, broadcast, then scanning and the solver's check) and the rest in waiting for inclusion. Testnet blocks averaged about 25 s (Zcash targets 75 s), but each block arrived with a timestamp about one interval old. Miners build each block from a template made before they see new transactions, so a transaction usually lands in the second block after it is sent: 27 s to 100 s per step in that run. Payments wait for none of this; they took 8–35 ms.
 
 **Operating notes:**
 - **Limits:** one grant per session and 100 sessions (`--max-sessions`). Sessions survive a restart, and a session can be reopened with `/?session=<id>`.

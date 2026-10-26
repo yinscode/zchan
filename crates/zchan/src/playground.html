@@ -73,9 +73,16 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 .kpis span { display: block; font: 500 11px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .mono { font-family: var(--mono); font-size: 13px; word-break: break-all; }
 .txl { font: 12px/1.4 var(--mono); color: var(--muted); margin-top: 8px; }
+.wins { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 28px; }
+.wins div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.wins b { display: block; font: 800 24px/1.1 var(--display); color: var(--gold); letter-spacing: -0.01em; }
+.wins span { display: block; color: var(--muted); font-size: 14px; margin-top: 4px; }
+.why { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.kpis.two { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: -4px; }
+.kpis .gold { color: var(--gold); }
 a { color: inherit; }
 footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
-@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } .ledger { position: static; } .shops { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { .grid, .wins { grid-template-columns: minmax(0, 1fr); } .ledger { position: static; } .shops { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -84,6 +91,11 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
   <header><b>zchan playground</b><span class="meta" id="hdr">connecting…</span></header>
   <h1>Shield in. Pay per request. <em>Shield out.</em></h1>
   <p class="lede">This page gives you an agent of your own on a live Zcash network. Fund it privately, open one payment channel, pay three merchants over x402 and MPP, then close. The ledger on the right shows exactly what the chain saw.</p>
+  <div class="wins">
+    <div><b>Sub-second payments</b><span>Each payment is one signed channel state, paid and answered in milliseconds. No block to wait for.</span></div>
+    <div><b>Gasless</b><span>No transaction per payment, so no network fee per payment. Only the open and the close go on chain.</span></div>
+    <div><b>Private</b><span>Funded from Ironwood and closed to Ironwood. The chain sees a channel, not your payments.</span></div>
+  </div>
 
   <div class="grid">
     <div>
@@ -101,7 +113,7 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
       </section>
       <section class="step" id="s3">
         <h2><span class="n">3</span>Pay merchants</h2>
-        <p>Each payment is a signed channel state: no transaction and no block to wait for. Pick a protocol and a merchant. The solver pays the merchant on its own channel, and the merchant signs a receipt your agent presents.</p>
+        <p>This is the fast part. Each payment is a signed channel state: it completes in milliseconds, with no transaction, no block and no network fee (the solver's own small service fee is shown in the quote). Pick a protocol and a merchant. The solver pays the merchant on its own channel, and the merchant signs a receipt your agent presents.</p>
         <div class="meter" aria-hidden="true"><i id="lvl"></i></div>
         <div class="mono" id="lvltext">no channel yet</div>
         <div class="shops" id="shops"></div>
@@ -123,6 +135,10 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
         <div><span>On-chain payments</span><b class="big" id="kptx">0</b></div>
         <div><span>Chain txs (open/close)</span><b class="big" id="ktx">0</b></div>
       </div>
+      <div class="kpis two">
+        <div><span>Typical payment, end to end</span><b class="big gold" id="kms">–</b></div>
+        <div><span>Network fees on payments</span><b class="big gold">0 zat</b></div>
+      </div>
       <table><tbody id="ledger"><tr class="unseen"><td>Nothing yet.</td></tr></tbody></table>
       <p class="sub" style="margin-top:14px">Public on chain: each channel's capacity and when it opened and closed. Hidden: where your funds came from, how the channel split, and every payment. The solver does see which merchant you paid.</p>
     </aside>
@@ -133,7 +149,14 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var info = null, sid = null, state = null, payments = [], paying = false;
+  var info = null, sid = null, state = null, payments = [], paying = false, polledAt = 0;
+  // How long the running step has waited: the server's count at the last poll, plus time since.
+  function waitText() {
+    var w = state && state.wait; if (!w) return '';
+    var s = w.seconds + Math.floor((Date.now() - polledAt) / 1000);
+    var n = w.blocks;
+    return Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2) + ' · ' + (n ? n + ' new block' + (n > 1 ? 's' : '') + ' so far' : 'waiting for the next block');
+  }
   var shops = [
     { merchant: 'merchant-a', path: '/paid/weather', label: 'Weather report' },
     { merchant: 'merchant-b', path: '/paid/news', label: 'News brief' },
@@ -172,7 +195,10 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
   }
   function lastOf(kind) { var l = (state && state.log) || []; for (var i = l.length - 1; i >= 0; i--) if (l[i].kind === kind) return l[i]; return null; }
   function trace(e) {
-    if (e.error) return '<div class="err">' + esc(e.error) + '</div>';
+    if (e.error) {
+      var m = /has (\d+) left, needs (\d+)/.exec(e.error);
+      return '<div class="err">' + (m ? 'Your channel has ' + zat(+m[1]) + ' left and this call costs ' + zat(+m[2]) + '. Close it to get the rest back.' : esc(e.error)) + '</div>';
+    }
     var rows = (e.trace || []).map(function (t) {
       var v;
       if (t.step === 'request') v = t.method + ' ' + t.url;
@@ -192,12 +218,14 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     var busy = state.busy, ch = state.channel;
     var s1 = lastOf('shield-in'), s2 = lastOf('open'), s4 = lastOf('close');
     $('b1').disabled = !!busy || state.granted;
-    $('b2').disabled = !!busy || !state.shielded || (ch && ['closed', 'abandoned', 'expired'].indexOf(ch.status) < 0);
+    $('b2').disabled = !!busy || state.shielded < ((info && info.min_open) || 1) || (ch && ['closed', 'abandoned', 'expired'].indexOf(ch.status) < 0);
     $('b4').disabled = !!busy || !ch || ch.status !== 'open' || !(ch.level > 10000);
     $('s1').classList.toggle('done', !!(s1 && s1.ok)); $('s2').classList.toggle('done', !!(s2 && s2.ok)); $('s4').classList.toggle('done', !!(s4 && s4.ok));
-    var b = function (k) { return busy && busy.indexOf(k) === 0 ? '<div class="busy">' + esc(busy) + '… waiting for the next block (Zcash aims for one every 75 s; testnet is often quicker)</div>' : ''; };
+    var b = function (k) { return busy && busy.indexOf(k) === 0 ? '<div class="busy">' + esc(busy) + ' · <span id="waited">' + waitText() + '</span></div>' +
+      '<div class="why">Sent in about a second; now a miner has to include it. Miners build each block before they see new transactions, so it usually lands in the second block after you click.</div>' : ''; };
     $('o1').innerHTML = b('shielding') + step('shield-in', s1, s1 && s1.ok ? [['You received ' + zat(s1.result.amount) + ', shielded', 'gold'], ['Your balance: ' + zat(state.shielded)]] : []);
-    $('o2').innerHTML = b('opening') + step('open', s2, s2 && s2.ok ? [['Channel of ' + zat(s2.result.capacity), 'gold'], ['Safety refund from block ' + Number(s2.result.lock_height).toLocaleString('en-US')]] : []);
+    var low = state.shielded < ((info && info.min_open) || 0) && !(ch && ch.status === 'open') && !busy && state.granted;
+    $('o2').innerHTML = b('opening') + (low ? '<div class="err">Your balance (' + zat(state.shielded) + ') has been spent on payments and fees: another channel needs ' + zat(info.min_open) + '.</div><button class="ghost" id="fresh" style="margin-top:10px">Start a new session</button>' : '') + step('open', low && s2 && !s2.ok ? null : s2, s2 && s2.ok ? [['Channel of ' + zat(s2.result.capacity), 'gold'], ['Safety refund from block ' + Number(s2.result.lock_height).toLocaleString('en-US')]] : []);
     $('o4').innerHTML = b('closing') + step('close', s4, s4 && s4.ok ? [['Your change: ' + zat(s4.result.change_note) + ', back in your shielded balance', 'gold']] : []);
     if (ch) {
       var pct = Math.min(100, Math.round(100 * ch.level / ch.capacity));
@@ -207,8 +235,14 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     var canPay = ch && ch.status === 'open' && !busy;
     Array.prototype.forEach.call(document.querySelectorAll('.shop button'), function (btn) { btn.disabled = !canPay; });
     payments = (state.log || []).filter(function (l) { return l.kind === 'pay'; });
-    if (!paying && payments.length) $('o3').innerHTML = '<div class="facts"><span class="chip">latest payment: ' + esc(payments[payments.length - 1].merchant) + ' over ' + esc(payments[payments.length - 1].protocol.toUpperCase()) + '</span></div>' + trace(payments[payments.length - 1]);
-    $('kpay').textContent = payments.filter(function (p) { return p.ok; }).length;
+    if (!paying && payments.length) {
+      var lp = payments[payments.length - 1];
+      $('o3').innerHTML = (lp.ok ? chips([['Paid and answered in ' + lp.elapsed_ms + ' ms', 'gold'], ['Network fee: 0 zat', 'zero'], [esc(lp.merchant) + ' over ' + esc(lp.protocol.toUpperCase())]]) : '') + trace(lp);
+    }
+    var okp = payments.filter(function (p) { return p.ok; });
+    $('kpay').textContent = okp.length;
+    var ms = okp.map(function (p) { return p.elapsed_ms; }).sort(function (a, b) { return a - b; });
+    $('kms').textContent = ms.length ? ms[Math.floor(ms.length / 2)] + ' ms' : '–';
     var txs = (state.log || []).filter(function (l) { return l.ok && l.result && l.result.tx && l.result.tx.height; });
     $('ktx').textContent = txs.length;
     var rows = (state.log || []).map(function (l) {
@@ -219,7 +253,7 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     }).join('');
     $('ledger').innerHTML = rows || '<tr class="unseen"><td>Nothing yet.</td></tr>';
   }
-  function poll() { if (!sid) return; api('/api/session/' + sid).then(function (s) { state = s; render(); }).catch(function (e) { if (/no such session/.test(e.message)) { try { localStorage.removeItem('zchan-pg'); } catch (_) {} sid = null; start(); } }); }
+  function poll() { if (!sid) return; api('/api/session/' + sid).then(function (s) { state = s; polledAt = Date.now(); render(); }).catch(function (e) { if (/no such session/.test(e.message)) { try { localStorage.removeItem('zchan-pg'); } catch (_) {} sid = null; start(); } }); }
   function start() {
     var q = /[?&]session=([0-9a-f]{32})/.exec(location.search);
     if (q) sid = q[1];
@@ -253,6 +287,12 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     start();
   }).catch(function (e) { $('hdr').textContent = 'playground unreachable: ' + e.message; });
   setInterval(poll, 3000);
+  setInterval(function () { var w = $('waited'); if (w) w.textContent = waitText(); }, 1000);
+  document.addEventListener('click', function (ev) {
+    if (ev.target.id !== 'fresh') return;
+    try { localStorage.removeItem('zchan-pg'); } catch (_) {}
+    location.href = location.pathname;
+  });
 })();
 </script>
 </body>

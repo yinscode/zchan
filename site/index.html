@@ -207,7 +207,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       <div>
         <p class="eyebrow">For AI agents and merchants</p>
         <h1 style="margin-top:16px">Pay per request. <em>Settle once.</em></h1>
-        <p class="lede">zchan gives every agent one Zcash payment channel and pays any merchant through it. Each payment is a signed channel state that moves in milliseconds. The chain sees the channel open and the channel close, and nothing in between.</p>
+        <p class="lede">zchan gives every agent one Zcash payment channel and pays any merchant through it. Each payment is a signed channel state: sub-second and gasless, with no transaction and no network fee. The chain sees the channel open and the channel close, and nothing in between.</p>
         <div class="cta">
           <a class="btn solid" href="#developers">Start building</a>
           <a class="btn ghost" href="#how">See how it works</a>
@@ -227,7 +227,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
           <div><span class="t">GET</span>  /paid/news  <span class="s402">402</span> · quote 5,000 + 100</div>
           <div class="ok">  ✓ state 25,200 · merchant-b acknowledged · 200 OK</div>
         </div>
-        <p class="foot">Amounts in zatoshis. Fees per state: none. Fee per close: 10,000.</p>
+        <p class="foot">Amounts in zatoshis. Network fee per payment: none. Fee per close: 10,000.</p>
       </div>
     </div>
   </section>
@@ -237,7 +237,8 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       <span class="lab">Live on Zcash testnet</span>
       <span class="item"><b class="num">71</b><span>blocks for the full run</span></span>
       <span class="item"><b class="num">4</b><span>channels opened and closed</span></span>
-      <span class="item"><b class="num">0</b><span>transactions per payment</span></span>
+      <span class="item"><b class="num">8–35 ms</b><span>per paid request</span></span>
+      <span class="item"><b class="num">0 zat</b><span>network fee per payment</span></span>
       <span class="item"><b class="num">65,000</b><span>zat paid out shielded</span></span>
       <span class="item"><b class="num">4,524,504</b><span>refund lock height, enforced by the chain</span></span>
     </div>
@@ -251,7 +252,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
         <p class="lede">A Zcash transaction costs at least 10,000 zatoshis and waits for a block. A channel spreads that cost over every payment it carries, and payments clear as fast as an HTTP round trip.</p>
       </div>
       <div class="benefits">
-        <div class="benefit"><span class="fact">2 transactions, any number of payments</span><h3>No transaction per payment</h3><p>Each payment raises the channel's cumulative level by one signature. Only the open and the close touch the chain, so a 100-zatoshi call is worth charging for.</p></div>
+        <div class="benefit"><span class="fact">8–35 ms · 0 network fee per payment</span><h3>Sub-second and gasless</h3><p>Each payment raises the channel's cumulative level by one signature: no transaction, no block, no network fee. Only the open and the close touch the chain, so a 100-zatoshi call is worth charging for. (Times measured on testnet with agent, solver and merchant on one host; add your network's round trips.)</p></div>
         <div class="benefit"><span class="fact">refund signed before funding</span><h3>Funds always come back</h3><p>Before an agent funds a channel, the other side signs a time-locked refund. If anyone disappears, the agent's watcher broadcasts it at the lock height.</p></div>
         <div class="benefit"><span class="fact">x402 v2 · MPP</span><h3>Paid in plain HTTP</h3><p>Merchants answer 402 Payment Required with a signed invoice, offered over both x402 and MPP. The client pays and retries with the merchant's own signed receipt.</p></div>
         <div class="benefit"><span class="fact">1 agent channel → every merchant</span><h3>One channel, every merchant</h3><p>A solver keeps one channel to each merchant and nets the agents' payments through it. Agents never open a channel per seller.</p></div>
