@@ -48,9 +48,18 @@ impl Args {
         self.get(k) == Some("true")
     }
 
+    /// `config` for a service with no `/admin` routes: it may listen anywhere.
+    pub fn config_open(&self, default_listen: &str) -> (Config, String) {
+        self.config_inner(default_listen, false)
+    }
+
     /// The options every service shares. Environment `ZCHAN_NODE_URL` and `ZCHAN_FAULT`
     /// apply when the flags are absent.
     pub fn config(&self, default_listen: &str) -> (Config, String) {
+        self.config_inner(default_listen, true)
+    }
+
+    fn config_inner(&self, default_listen: &str, guard_admin: bool) -> (Config, String) {
         let listen = self.str("listen", default_listen);
         let d = Config::default();
         let cfg = Config {
@@ -82,7 +91,7 @@ impl Args {
             fault: self.get("fault").map(str::to_owned).or_else(|| std::env::var("ZCHAN_FAULT").ok()),
         };
         let loopback = listen.starts_with("127.") || listen.starts_with("localhost:") || listen.starts_with("[::1]");
-        if !loopback && cfg.admin_token.is_none() && self.command.as_deref() != Some("serve") {
+        if guard_admin && !loopback && cfg.admin_token.is_none() && self.command.as_deref() != Some("serve") {
             eprintln!("listening on {listen}: set --admin-token (or ZCHAN_ADMIN_TOKEN) to protect /admin/*");
             std::process::exit(2);
         }

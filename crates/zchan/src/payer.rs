@@ -203,6 +203,42 @@ pub async fn send(ctx: &Ctx, to: zcash_transparent::address::TransparentAddress,
     Ok(txid)
 }
 
+/// Sends `amount` from this party's shielded notes to an Ironwood address, change back
+/// to the account (to fund another party privately). Returns the display txid.
+pub async fn send_shielded(ctx: &Ctx, to: orchard::Address, amount: u64) -> Result<String> {
+    use zchan_tx::tx::{self, Pay, Spec};
+    let coins_lock = ctx.lock("coins");
+    let _g = coins_lock.lock().await;
+    let notes = ctx.shielded_notes().await?;
+    let pick = zchan_tx::notes::select(notes, amount + 40_000)
+        .ok_or_else(|| Error::Funding(format!("shielded balance cannot send {amount}")))?;
+    let have: u64 = pick.iter().map(|n| n.value()).sum();
+    let tip = ctx.tip().await?;
+    let (spends, anchor) = zchan_tx::notes::spends(&ctx.node, &ctx.wallet.shielded_fvk(), &pick, tip).await?;
+    let change = ctx.wallet.shielded_change();
+    let mut spec = Spec {
+        target_height: tip + 1,
+        expiry_height: tip + 40,
+        lock_height: None,
+        inputs: vec![],
+        outputs: vec![Pay::Ironwood(to, amount), Pay::Ironwood(change, 1)],
+        ironwood_anchor: Some(anchor),
+        ironwood_spends: spends,
+    };
+    let fee = tx::fee(&ctx.p, &spec)?;
+    let left = have.checked_sub(amount + fee).ok_or_else(|| Error::Funding(format!("{have} cannot cover {amount} + fee {fee}")))?;
+    spec.outputs[1] = Pay::Ironwood(change, left);
+    let (pczt, n) = tx::sign_ironwood(tx::build(&ctx.p, &spec)?, &orchard::keys::SpendAuthorizingKey::from(&ctx.wallet.ironwood_sk(0)))?;
+    if n != pick.len() {
+        return Err(Error::Funding(format!("signed {n} of {} spends", pick.len())));
+    }
+    let f = tx::extract(pczt)?;
+    let txid = ctx.broadcast(&f).await?;
+    ctx.wait_mined(&f).await?;
+    ctx.store.tx(|c| store::event(c, "sent_shielded", json!({"amount": amount, "fee": fee, "txid": txid})))?;
+    Ok(txid)
+}
+
 /// How much more this payer channel can pay.
 pub fn remaining(ctx: &Ctx, row: &ChannelRow) -> Result<u64> {
     let terms = Terms::try_from(&row.terms)?;

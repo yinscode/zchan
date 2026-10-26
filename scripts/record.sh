@@ -3,7 +3,7 @@
 # screenshots of the real pages (solver dashboard, point of sale, invoice hand-off, agent
 # approval), captioned and joined into an MP4. Needs Google Chrome and ffmpeg.
 #
-#   scripts/record.sh                                         regtest
+#   scripts/record.sh                                         regtest (shielded run)
 #   NETWORK=testnet ZCHAN_NODE_URL=<Zakura RPC> scripts/record.sh
 #
 # Writes $OUT (default video/<network>/): zchan-demo-<network>.mp4, frames and logs.
@@ -19,12 +19,16 @@ export ZCHAN_ADMIN_TOKEN="${ZCHAN_ADMIN_TOKEN:-$(openssl rand -hex 12)}"
 json() { /usr/bin/python3 -c "import json,sys; d=json.load(sys.stdin); print(eval(sys.argv[1]))" "$1"; }
 shot() { perl -e 'alarm shift; exec @ARGV' 45 "$CHROME" --headless=new --disable-gpu --hide-scrollbars --force-dark-mode --window-size="${3:-1280,860}" \
   --virtual-time-budget=5000 --screenshot="$2" "$1" >/dev/null 2>&1; }
-stop() { pkill -f "$ROOT/.demo/$NETWORK" 2>/dev/null || true; }
+stop() { pkill -f "$ROOT/.demo/$NETWORK" 2>/dev/null || true; pkill -f "scripts/upstream.py 7400" 2>/dev/null || true; }
 trap stop EXIT
 
 KEEP=1 NETWORK="$NETWORK" "$ROOT/scripts/demo.sh" | tee "$OUT/demo.txt"
 DATA="$ROOT/.demo/$NETWORK"
 UI=$(grep -o 'http[^ ]*/t/[^ ]*' "$DATA/agent-1-ui.log")
+
+# One unpaid request to the proxy: a single 402 offers x402 and MPP.
+curl -s -D - -o /dev/null "http://127.0.0.1:7204/api/search?q=zcash" | tr -d '\r' \
+  | grep -i -E "^HTTP|^payment-required|^www-authenticate" | cut -c1-118 > "$OUT/offer.txt"
 
 INV=$(curl -s -X POST "$A/invoices" -H 'content-type: application/json' -d '{"amount":30000,"resource":"checkout:coffee"}' | json 'd["body"]["id"]')
 INV_URL="$A/invoices/$INV"
@@ -36,19 +40,10 @@ QUOTE=$(curl -s -X POST "${UI}api/resolve" -H 'content-type: application/json' -
 curl -s -X POST "${UI}api/approve" -H 'content-type: application/json' -d "{\"quote\":$QUOTE}" | json '"approved: "+json.dumps(d["ack"]["body"])' | tee -a "$OUT/demo.txt"
 shot "$A/checkout?invoice=$INV" "$OUT/shots/checkout-paid.png" 520,900
 
-{
-  echo "== settle: A closes to Ironwood, B closes transparently, the solver closes agent channels"
-  ID_A=$(curl -s "$SOLVER/status.json" | json '[m["channel_id"] for m in d["merchants"] if m["id"]=="merchant-a"][0]')
-  ID_B=$(curl -s "$SOLVER/status.json" | json '[m["channel_id"] for m in d["merchants"] if m["id"]=="merchant-b"][0]')
-  curl -s -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "$A/admin/channels/$ID_A/coop-close" | json '"  merchant-a → Ironwood   "+d["txid"]'
-  curl -s -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "http://127.0.0.1:7202/admin/channels/$ID_B/close" | json '"  merchant-b transparent  "+d["txid"]'
-  for id in $(curl -s "$SOLVER/status.json" | json '" ".join(c["id"] for c in d["agent_channels"])'); do
-    curl -s -H "x-admin-token: $ZCHAN_ADMIN_TOKEN" -X POST "$SOLVER/admin/channels/$id/close" | json '"  agent channel           "+d["txid"]'
-  done
-} | tee "$OUT/close.txt"
-# Wait until every channel has settled on chain (a block or two on testnet).
+STEP=settle NETWORK="$NETWORK" "$ROOT/scripts/demo.sh" | tee "$OUT/close.txt"
+# Wait until the solver has seen every close.
 for _ in $(seq 1 120); do
-  open=$(curl -s "$SOLVER/status.json" | json 'sum(1 for k in ("agent_channels","merchant_channels") for c in d[k] if c["status"]!="closed")')
+  open=$(curl -s "$SOLVER/status.json" | json 'sum(1 for k in ("agent_channels","merchant_channels") for c in d[k] if c["status"] not in ("closed","expired"))')
   [ "$open" = 0 ] && break
   sleep 10
 done

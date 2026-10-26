@@ -45,6 +45,10 @@ pub struct Fetched {
     /// MPP `Payment-Receipt`, when paid over MPP.
     pub receipt: Option<mpp::Receipt>,
     pub ack: Option<Signed<Ack>>,
+    /// What happened, step by step: the request, the 402 offers, the quote, the signed
+    /// state, the merchant's acknowledgment, the paid request and its answer.
+    pub trace: Vec<Value>,
+    pub elapsed_ms: u64,
 }
 
 /// Which protocol to pay a 402 with, when the merchant offers both.
@@ -323,6 +327,9 @@ impl Agent {
     /// invoice and repeats the request with the merchant's acknowledgment, over `prefer`
     /// when offered, else the other protocol.
     pub async fn fetch(&self, method: reqwest::Method, url: &str, body: Option<Vec<u8>>, prefer: Protocol) -> Result<Fetched> {
+        let t0 = std::time::Instant::now();
+        let ms = |t: std::time::Instant| t.elapsed().as_millis() as u64;
+        let mut trace = vec![json!({"step": "request", "method": method.as_str(), "url": url, "ms": 0})];
         let send = |extra: Option<(&'static str, String)>| {
             let mut rq = self.ctx.http.request(method.clone(), url);
             if let Some(b) = &body {
@@ -335,7 +342,7 @@ impl Agent {
         };
         let r = send(None).await?;
         if r.status().as_u16() != 402 {
-            return fetched(r, None).await;
+            return fetched(r, None, trace, t0).await;
         }
         let x402_offer = r
             .headers()
@@ -353,6 +360,11 @@ impl Agent {
             .filter_map(|h| h.to_str().ok())
             .filter_map(|h| mpp::Challenge::parse(h).ok())
             .find(|c| c.method == mpp::METHOD && c.intent == mpp::INTENT);
+        trace.push(json!({
+            "step": "402", "ms": ms(t0),
+            "x402": x402_offer.as_ref().map(|(_, a)| json!({"header": x402::PAYMENT_REQUIRED, "scheme": a.scheme, "network": a.network, "amount": a.amount, "payTo": a.pay_to, "paymentFlow": a.extra.payment_flow})),
+            "mpp": mpp_offer.as_ref().map(|c| json!({"header": "WWW-Authenticate", "scheme": "Payment", "method": c.method, "intent": c.intent, "id": c.id, "expires": c.expires})),
+        }));
         let use_mpp = match (prefer, &x402_offer, &mpp_offer) {
             (_, None, None) => return Err(Error::Other(format!("no zchannel offer on {}", self.ctx.network))),
             (Protocol::Mpp, _, Some(_)) | (Protocol::X402, None, Some(_)) => true,
@@ -361,7 +373,7 @@ impl Agent {
         if use_mpp {
             let c = mpp_offer.expect("checked");
             let charge = c.charge()?;
-            let inv = &charge.method_details.invoice;
+            let inv = charge.method_details.invoice.clone();
             inv.verify(INVOICE)?;
             if charge.amount != inv.body.amount.to_string()
                 || charge.recipient != inv.body.merchant_id
@@ -376,13 +388,14 @@ impl Agent {
             if c.expires.as_deref().and_then(mpp::parse_rfc3339).is_some_and(|e| now() > e) {
                 return Err(Error::Other("challenge expired".into()));
             }
-            let ack = self.pay_invoice(inv).await?;
+            let ack = self.pay_traced(&inv, &mut trace, t0).await?;
             let cred = mpp::Credential { challenge: c, source: None, payload: mpp::Payload { ack: ack.clone() } };
+            trace.push(json!({"step": "retry", "ms": ms(t0), "header": "Authorization", "value": format!("Payment {}…", &cred.header()[8..40])}));
             let r = send(Some(("authorization", cred.header()))).await?;
-            return fetched(r, Some(ack)).await;
+            return fetched(r, Some(ack), trace, t0).await;
         }
         let (pr, req) = x402_offer.expect("checked");
-        let inv = &req.extra.invoice;
+        let inv = req.extra.invoice.clone();
         inv.verify(INVOICE)?;
         if inv.body.amount.to_string() != req.amount || inv.body.merchant_id != req.pay_to {
             return Err(Error::Other("offer does not match its invoice".into()));
@@ -390,31 +403,50 @@ impl Agent {
         if req.extra.solver.trim_end_matches('/') != self.solver {
             return Err(Error::Other(format!("merchant pays through {}, not {}", req.extra.solver, self.solver)));
         }
-        let ack = self.pay_invoice(inv).await?;
+        let ack = self.pay_traced(&inv, &mut trace, t0).await?;
         let pp = PaymentPayload {
             x402_version: x402::VERSION,
             resource: Some(pr.resource),
             accepted: req,
             payload: ZchannelPayload { ack: ack.clone() },
         };
-        let r = send(Some((x402::PAYMENT_SIGNATURE, x402::encode(&pp)))).await?;
-        fetched(r, Some(ack)).await
+        let header = x402::encode(&pp);
+        trace.push(json!({"step": "retry", "ms": ms(t0), "header": x402::PAYMENT_SIGNATURE, "value": format!("{}…", &header[..32])}));
+        let r = send(Some((x402::PAYMENT_SIGNATURE, header))).await?;
+        fetched(r, Some(ack), trace, t0).await
+    }
+
+    /// Quote and pay, recording each step.
+    async fn pay_traced(&self, inv: &Signed<Invoice>, trace: &mut Vec<Value>, t0: std::time::Instant) -> Result<Signed<Ack>> {
+        let q = self.quote(inv).await?;
+        trace.push(json!({
+            "step": "quote", "ms": t0.elapsed().as_millis() as u64, "merchant": inv.body.merchant_id, "amount": q.body.amount,
+            "fee": q.body.fee, "credit_applied": q.body.credit_applied, "channel_debit": q.body.increment,
+        }));
+        let channel = q.body.agent_channel.clone();
+        let ack = self.pay_quote(q).await?;
+        let level = self.ctx.store.read(|c| store::channel_get(c, &channel))?.map(|r| r.cumulative).unwrap_or(0);
+        trace.push(json!({
+            "step": "paid", "ms": t0.elapsed().as_millis() as u64, "agent_channel_level": level,
+            "merchant_ack": {"merchant": ack.body.merchant_id, "invoice": ack.body.invoice_id, "merchant_channel_level": ack.body.cumulative},
+        }));
+        Ok(ack)
     }
 
     /// Repeats a request with an x402 payment payload (for tests of replays and mismatches).
     pub async fn get_with(&self, url: &str, pp: &PaymentPayload) -> Result<Fetched> {
         let r = self.ctx.http.get(url).header(x402::PAYMENT_SIGNATURE, x402::encode(pp)).send().await?;
-        fetched(r, Some(pp.payload.ack.clone())).await
+        fetched(r, Some(pp.payload.ack.clone()), vec![], std::time::Instant::now()).await
     }
 
     /// Repeats a request with an MPP credential (for tests of replays and tampering).
     pub async fn get_with_credential(&self, url: &str, cred: &mpp::Credential) -> Result<Fetched> {
         let r = self.ctx.http.get(url).header("authorization", cred.header()).send().await?;
-        fetched(r, Some(cred.payload.ack.clone())).await
+        fetched(r, Some(cred.payload.ack.clone()), vec![], std::time::Instant::now()).await
     }
 }
 
-async fn fetched(r: reqwest::Response, ack: Option<Signed<Ack>>) -> Result<Fetched> {
+async fn fetched(r: reqwest::Response, ack: Option<Signed<Ack>>, mut trace: Vec<Value>, t0: std::time::Instant) -> Result<Fetched> {
     let status = r.status().as_u16();
     let settlement = r
         .headers()
@@ -424,7 +456,11 @@ async fn fetched(r: reqwest::Response, ack: Option<Signed<Ack>>) -> Result<Fetch
     let receipt = r.headers().get(mpp::RECEIPT).and_then(|h| h.to_str().ok()).and_then(|h| mpp::Receipt::parse(h).ok());
     let text = r.text().await.unwrap_or_default();
     let body = serde_json::from_str(&text).unwrap_or(Value::String(text));
-    Ok(Fetched { status, body, settlement, receipt, ack })
+    let elapsed_ms = t0.elapsed().as_millis() as u64;
+    if !trace.is_empty() {
+        trace.push(json!({"step": "response", "ms": elapsed_ms, "status": status, "x402_settlement": settlement, "mpp_receipt": receipt}));
+    }
+    Ok(Fetched { status, body, settlement, receipt, ack, trace, elapsed_ms })
 }
 
 // ---- Approval page (QR checkout) ------------------------------------------------------

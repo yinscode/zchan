@@ -51,6 +51,10 @@ def lines(name, start, stop=None):
     return "\n".join(keep)
 
 
+def read(name):
+    return (out / name).read_text()
+
+
 def term(text):
     return f"<pre>{html.escape(text)}</pre>"
 
@@ -60,40 +64,40 @@ def shot(name):
 
 
 deck = [
-    (6, "<div class=c><h1>zchan</h1><div class=sub>One channel per agent. One channel per merchant.<br>Many payments, no transaction per payment.</div></div>",
-     f"A Zecathon demo, recorded on Zcash {network}."),
-    (12, term(lines("demo.txt", "== solver opens", "== agent-1 buys")),
-     "The solver opens one channel to each merchant, and each agent opens one channel to the solver. "
-     "Every refund is signed by both sides before its funding transaction is signed."),
-    (16, term(lines("demo.txt", "== agent-1 buys", "== running")),
-     "Each merchant answers HTTP 402 with an x402 v2 offer. The agent signs its next channel state; the solver pays the "
-     "merchant on its own channel and relays the merchant's signed receipt. Agent-1 pays two merchants through one channel."),
-    (14, shot("dashboard-1.png"),
-     "The solver's dashboard: two agents bought from merchant A and advanced the same solver→A channel. Every channel reconciles."),
-    (11, shot("checkout-waiting.png"),
-     "At a counter, the merchant's point of sale shows a QR code. It carries only an invoice reference: no key, no bearer token."),
-    (7, shot("handoff.png"),
-     "The phone's camera opens the invoice page, which hands the invoice link to the buyer's own agent."),
-    (12, shot("approve.png"),
-     "The agent fetches the signed invoice, verifies it, gets a quote, and shows merchant, amount, solver fee and expiry before approval."),
-    (7, shot("checkout-paid.png"),
-     "Approved: the merchant has signed for the channel state that paid it, and the point of sale shows Paid."),
-    (12, term(lines("close.txt", "== settle")),
-     "End of day: merchant A closes cooperatively and its share goes to a shielded Ironwood address; "
-     "merchant B and the agent channels close transparently. Each close is one transaction."),
+    (5, "<div class=c><h1>zchan</h1><div class=sub>Payment channels for AI agents on Zcash.<br>Pay per request. Settle once. Shielded in, shielded out.</div></div>",
+     f"A Zecathon demo, recorded live on Zcash {network}."),
+    (12, term(lines("demo.txt", "== funding", "== purchases")),
+     "The solver opens one channel to each merchant and each agent opens one channel to the solver. Every channel is "
+     "funded from shielded Ironwood notes: zero transparent inputs, and each refund is signed before its funding."),
+    (9, term(read("offer.txt")),
+     "Merchant D runs in proxy mode in front of an existing API. One 402 response offers the same signed invoice "
+     "two ways: x402 v2 and MPP."),
+    (15, term(lines("demo.txt", "== purchases", "== running")),
+     "Agents pay over x402 and MPP, including a POST through the proxy. Each payment is a new signed channel state; "
+     "no transaction is broadcast. Agent-1 pays two merchants through one channel, and both agents share the channel to A."),
+    (10, shot("dashboard-1.png"),
+     "The solver's dashboard: every channel's level, every payment, and books that reconcile."),
+    (9, shot("checkout-waiting.png"),
+     "At a counter, the point of sale shows a QR code carrying only an invoice reference."),
+    (5, shot("handoff.png"), "The phone opens the invoice and hands it to the buyer's own agent."),
+    (8, shot("approve.png"), "The agent verifies the signed invoice, gets a quote, and shows the merchant, amount and fee."),
+    (5, shot("checkout-paid.png"), "Approved. The merchant signed for the state that paid it."),
+    (15, term(lines("close.txt", "== settle")),
+     "Every channel closes cooperatively with both sides paid to Ironwood: zero transparent outputs. Agents start their "
+     "own close and co-sign only after decrypting their change. The chain sees capacity and timing, not the split."),
     (6, shot("dashboard-2.png"), "All channels settled; the books still reconcile."),
-    (13,
-     "<table><tr><th>Exposure</th><th>Enforced by</th></tr>"
-     "<tr><td>Agent's unspent capacity</td><td class=ok>chain: presigned refund</td></tr>"
-     "<tr><td>What a merchant has acknowledged</td><td class=ok>chain: it holds the signed state</td></tr>"
-     "<tr><td>Solver capital in merchant channels</td><td class=ok>chain: presigned refund</td></tr>"
-     "<tr><td>Agent paid, solver does not forward</td><td class=bad>trust in the solver · one payment at a time</td></tr>"
-     "<tr><td>The two legs together</td><td class=bad>not atomic</td></tr>"
-     "<tr><td>Funding and transparent closes</td><td class=bad>public amounts and parties</td></tr></table>",
-     "Honest limits: the legs are not atomic, the solver is trusted with one payment per agent at a time, and funding is "
-     "transparent. Refunds and closes are enforced by the chain."),
-    (4, "<div class=c><h1>zchan</h1><div class=sub>docs/design.md · docs/x402-zchannel.md · scripts/demo.sh</div></div>",
-     "Source, tests and the full trust model are in the repository."),
+    (16,
+     "<table><tr><th>What the chain sees</th><th></th></tr>"
+     "<tr><td>Individual payments</td><td class=ok>nothing: off chain</td></tr>"
+     "<tr><td>Where channel money came from</td><td class=ok>hidden: funded from notes</td></tr>"
+     "<tr><td>How a channel was split</td><td class=ok>hidden: both sides closed to Ironwood</td></tr>"
+     "<tr><td>Channel capacity, open and close times</td><td class=bad>public</td></tr>"
+     "<tr><td>Refunds and unilateral closes</td><td class=bad>transparent (no time locks in Ironwood)</td></tr>"
+     "<tr><td>Agent ↔ merchant mapping</td><td class=bad>seen by the solver; legs not atomic</td></tr></table>",
+     "Honest limits: the solver is trusted with one payment per agent at a time and sees the payment graph. "
+     "Refunds stay transparent. Mainnet stays disabled until review."),
+    (5, "<div class=c><h1>zchan</h1><div class=sub>docs/design.md · docs/privacy.md · docs/testnet.md · scripts/demo.sh</div></div>",
+     "Every transaction in this video is in docs/testnet.md."),
 ]
 
 index = []

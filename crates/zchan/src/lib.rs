@@ -9,6 +9,7 @@
 //! - `solver`, `merchant`, `agent`: the three services.
 //! - `x402`, `mpp`: the x402 v2 and MPP wire formats for the `zchannel` method.
 //! - `gate`: the merchant's payment gate (both protocols) and proxy mode.
+//! - `playground`: a web page where anyone can try the whole flow with an agent of their own.
 
 pub mod agent;
 pub mod args;
@@ -19,6 +20,7 @@ pub mod merchant;
 pub mod mpp;
 pub mod payee;
 pub mod payer;
+pub mod playground;
 pub mod solver;
 pub mod store;
 pub mod web;

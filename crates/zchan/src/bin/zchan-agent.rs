@@ -8,6 +8,8 @@
 //! zchan-agent shield                          move transparent coins to the shielded account
 //! zchan-agent balance                         transparent and shielded balances
 //! zchan-agent notes                           unspent shielded notes
+//! zchan-agent shielded-address                this party's Ironwood address (raw, hex)
+//! zchan-agent send-shielded ADDRESS_HEX ZAT   pay another party's Ironwood address
 //! zchan-agent open --capacity ZAT --lock-blocks N [--shielded]
 //! zchan-agent get URL [--mpp] [--method M --body B]
 //!                                             pay a 402 (x402 v2, or MPP with --mpp) and fetch
@@ -51,6 +53,15 @@ async fn main() {
             Some(txid) => println!("{txid}"),
             None => die("no confirmed transparent coins to shield"),
         },
+        Some("shielded-address") => println!("{}", hex::encode(ctx.wallet.shielded_address(0).to_raw_address_bytes())),
+        Some("send-shielded") => {
+            let (to, amount) = match a.positional.as_slice() {
+                [to, amount] => (to, amount.parse::<u64>().unwrap_or_else(|e| die(e))),
+                _ => die("send-shielded IRONWOOD_ADDRESS_HEX ZAT"),
+            };
+            let to = zchan::payee::ironwood_address(to).unwrap_or_else(|| die("not a raw Ironwood address"));
+            println!("{}", zchan::payer::send_shielded(&ctx, to, amount).await.unwrap_or_else(|e| die(e)));
+        }
         Some("notes") => {
             let notes = ctx.shielded_notes().await.unwrap_or_else(|e| die(e));
             out(serde_json::json!(notes.iter().map(|n| serde_json::json!({
@@ -113,7 +124,7 @@ async fn main() {
             let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
             axum::serve(l, zchan::agent::router(agent)).await.unwrap_or_else(|e| die(e));
         }
-        _ => die("command: deposit | shield | balance | notes | send | open | close | get | pay-ref | resume | status | watch | serve"),
+        _ => die("command: deposit | shield | balance | notes | shielded-address | send-shielded | send | open | close | get | pay-ref | resume | status | watch | serve"),
     }
 }
 

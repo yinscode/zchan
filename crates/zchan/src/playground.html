@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>zchan playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Public+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a workbench. Four steps down the left, a live ledger of what the chain saw on
+   the right; payment traces open under the step that made them. */
+:root {
+  --bg: #f1f2ec; --panel: #fbfbf7; --ink: #15201c; --muted: #59655f; --line: #d5d9cf;
+  --gold: #b9800a; --gold-soft: #f4e3b5; --ok: #1d7556; --bad: #b42318; --term: #15201c; --term-ink: #dfe6df; --term-dim: #8a978f;
+  --display: "Bricolage Grotesque", "Avenir Next", sans-serif; --body: "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f1513; --panel: #151d1a; --ink: #e5ebe4; --muted: #9ba79f; --line: #26322d; --gold: #f0b43a; --gold-soft: #3a2f14;
+    --ok: #55cf9f; --bad: #f2867c; --term: #0a0f0d; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--body); }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); }
+header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+header b { font: 800 26px/1 var(--display); letter-spacing: -0.02em; }
+header .meta { font: 500 13px/1.4 var(--mono); color: var(--muted); }
+h1 { font: 800 clamp(30px, 4.6vw, 52px)/1.02 var(--display); letter-spacing: -0.02em; margin: 28px 0 10px; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--gold); }
+.lede { color: var(--muted); max-width: 70ch; font-size: 18px; margin: 0 0 26px; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; }
+.step.done { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.step h2 { font: 700 20px/1.2 var(--display); margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; }
+.step h2 .n { font: 500 13px/1 var(--mono); color: var(--gold); }
+.step p { margin: 6px 0 12px; color: var(--muted); }
+button { font: 700 15px/1 var(--body); padding: 11px 18px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
+button.ghost { background: transparent; color: var(--ink); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.facts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; font: 500 13px/1 var(--mono); }
+.chip { padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); }
+.chip.zero { border-color: var(--ok); color: var(--ok); }
+.chip.gold { background: var(--gold-soft); border-color: transparent; color: var(--ink); }
+.busy { font: 500 13px/1.4 var(--mono); color: var(--gold); margin-top: 10px; }
+.busy::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-right: 8px; animation: pulse 1s infinite alternate; }
+@keyframes pulse { to { opacity: 0.25; } }
+.err { color: var(--bad); font-size: 14px; margin-top: 8px; }
+.meter { height: 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; margin: 10px 0 4px; }
+.meter i { display: block; height: 100%; background: var(--gold); width: 0; transition: width 0.4s; }
+.shops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.shop { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; background: var(--bg); min-width: 0; }
+.shop .name { font: 700 15px/1.2 var(--body); }
+.shop .path { font: 12px/1.3 var(--mono); color: var(--muted); word-break: break-all; }
+.shop .go { display: flex; gap: 6px; flex-wrap: wrap; }
+.shop button { padding: 8px 12px; font-size: 13px; }
+.trace { background: var(--term); color: var(--term-ink); border-radius: 12px; padding: 14px 16px; margin-top: 14px; font: 12.5px/1.55 var(--mono); overflow-x: auto; }
+.trace .row { display: grid; grid-template-columns: 56px 92px minmax(0, 1fr); gap: 10px; padding: 3px 0; }
+.trace .ms { color: var(--term-dim); text-align: right; }
+.trace .k { color: #f0b43a; }
+.trace .v { white-space: pre-wrap; word-break: break-word; }
+.ledger { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+.ledger h3 { font: 700 18px/1.2 var(--display); margin: 0 0 4px; }
+.ledger .sub { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+.ledger table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.ledger td { padding: 8px 6px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ledger td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.ledger .unseen td { color: var(--muted); }
+.big { font: 800 34px/1 var(--display); font-variant-numeric: tabular-nums; }
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 6px 0 14px; }
+.kpis div { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--bg); }
+.kpis span { display: block; font: 500 11px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.mono { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+a { color: inherit; }
+footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } .ledger { position: static; } .shops { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><b>zchan playground</b><span class="meta" id="hdr">connecting…</span></header>
+  <h1>Shield in. Pay per request. <em>Shield out.</em></h1>
+  <p class="lede">This page gives you an agent of your own on a live Zcash network. Fund it privately, open one payment channel, pay three merchants over x402 and MPP, then close. The ledger on the right shows exactly what the chain saw.</p>
+
+  <div class="grid">
+    <div>
+      <section class="step" id="s1">
+        <h2><span class="n">1</span>Shield in</h2>
+        <p>The house wallet sends your agent <b id="grant">—</b> as an Ironwood note. Nothing about it is transparent. It takes one block.</p>
+        <button id="b1">Shield in</button>
+        <div id="o1"></div>
+      </section>
+      <section class="step" id="s2">
+        <h2><span class="n">2</span>Open a channel</h2>
+        <p>Your agent funds one channel to the solver straight from that note. Before the funding is signed, the solver signs your refund, so the money can always come back. One block.</p>
+        <button id="b2" disabled>Open channel</button>
+        <div id="o2"></div>
+      </section>
+      <section class="step" id="s3">
+        <h2><span class="n">3</span>Pay merchants</h2>
+        <p>Each payment is a signed channel state: no transaction and no block to wait for. Pick a protocol and a merchant. The solver pays the merchant on its own channel, and the merchant signs a receipt your agent presents.</p>
+        <div class="meter" aria-hidden="true"><i id="lvl"></i></div>
+        <div class="mono" id="lvltext">no channel yet</div>
+        <div class="shops" id="shops"></div>
+        <div id="o3"></div>
+      </section>
+      <section class="step" id="s4">
+        <h2><span class="n">4</span>Shield out</h2>
+        <p>Close cooperatively: the solver builds the close, and your agent signs only after decrypting its change with its own key. Both sides are paid to Ironwood. One block. A shielded close costs 10,000 zat more than a plain one, paid from the solver's share, so it needs more than 10,000 zat of payments first.</p>
+        <button id="b4" disabled>Close channel</button>
+        <div id="o4"></div>
+      </section>
+    </div>
+
+    <aside class="ledger" aria-live="polite">
+      <h3>What the chain saw</h3>
+      <p class="sub">Every transaction your session caused, with its transparent inputs and outputs.</p>
+      <div class="kpis">
+        <div><span>Payments</span><b class="big" id="kpay">0</b></div>
+        <div><span>Payment txs</span><b class="big" id="kptx">0</b></div>
+        <div><span>Chain txs</span><b class="big" id="ktx">0</b></div>
+      </div>
+      <table><tbody id="ledger"><tr class="unseen"><td>Nothing yet.</td></tr></tbody></table>
+      <p class="sub" style="margin-top:14px">Public on chain: each channel's capacity and when it opened and closed. Hidden: where your funds came from, how the channel split, and every payment. The solver does see which merchant you paid.</p>
+    </aside>
+  </div>
+  <footer>Testnet funds only. One grant per session. The solver is trusted with one payment at a time; the chain enforces refunds and closes. Source and docs: docs/design.md, docs/privacy.md.</footer>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var info = null, sid = null, state = null, payments = [], paying = false;
+  var shops = [
+    { merchant: 'merchant-a', path: '/paid/weather', label: 'Weather report' },
+    { merchant: 'merchant-b', path: '/paid/news', label: 'News brief' },
+    { merchant: 'merchant-d', path: '/api/search?q=zcash', label: 'Search API (proxied)' },
+    { merchant: 'merchant-d', path: '/api/echo', label: 'Echo API, POST (proxied)', method: 'POST', body: 'hello from a judge' }
+  ];
+  function zat(n) { return (n || 0).toLocaleString('en-US') + ' zat'; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function api(path, body) {
+    return fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); });
+  }
+  function txChips(tx) {
+    if (!tx) return '';
+    if (!tx.height) return '<div class="facts"><span class="chip">waiting for a block…</span></div>';
+    var outs = tx.transparent_outputs || [];
+    var link = info && info.explorer ? '<a href="' + esc(info.explorer + tx.txid) + '" target="_blank" rel="noopener">' + esc(tx.txid.slice(0, 12)) + '…</a>' : esc(tx.txid.slice(0, 12)) + '…';
+    return '<div class="facts"><span class="chip">' + link + '</span><span class="chip">block ' + tx.height + '</span>' +
+      '<span class="chip ' + (tx.transparent_inputs ? '' : 'zero') + '">transparent in ' + tx.transparent_inputs + '</span>' +
+      '<span class="chip ' + (outs.length ? '' : 'zero') + '">transparent out ' + (outs.length ? outs.map(zat).join(', ') : 'none') + '</span>' +
+      ironwoodChip(tx) + '</div>';
+  }
+  function ironwoodChip(tx) {
+    var b = tx.into_ironwood || 0, outs = tx.transparent_outputs || [];
+    if (!b) return '';
+    if (b < 0 && !tx.transparent_inputs && !outs.length) return '<span class="chip gold">fully shielded · fee ' + zat(-b) + '</span>';
+    return '<span class="chip gold">' + zat(Math.abs(b)) + (b > 0 ? ' entered Ironwood' : ' left Ironwood') + '</span>';
+  }
+  function lastOf(kind) { var l = (state && state.log) || []; for (var i = l.length - 1; i >= 0; i--) if (l[i].kind === kind) return l[i]; return null; }
+  function trace(e) {
+    if (e.error) return '<div class="err">' + esc(e.error) + '</div>';
+    var rows = (e.trace || []).map(function (t) {
+      var v;
+      if (t.step === 'request') v = t.method + ' ' + t.url;
+      else if (t.step === '402') v = '402 Payment Required: one invoice offered as ' + [t.x402 ? 'x402 v2 (PAYMENT-REQUIRED, scheme ' + t.x402.scheme + ', ' + t.x402.amount + ' zat to ' + t.x402.payTo + ')' : '', t.mpp ? 'MPP (WWW-Authenticate: Payment, method ' + t.mpp.method + ', intent ' + t.mpp.intent + ')' : ''].filter(Boolean).join(' and ');
+      else if (t.step === 'quote') v = 'solver quotes ' + t.amount + ' + ' + t.fee + ' fee' + (t.credit_applied ? ' − ' + t.credit_applied + ' credit' : '') + ' = channel debit ' + t.channel_debit;
+      else if (t.step === 'paid') v = 'agent signs its channel at ' + t.agent_channel_level + '; solver pays ' + t.merchant_ack.merchant + ' on its channel (level ' + t.merchant_ack.merchant_channel_level + '); merchant signs a receipt for invoice ' + t.merchant_ack.invoice.slice(0, 8) + '…';
+      else if (t.step === 'retry') v = 'retry with ' + t.header + ': ' + t.value;
+      else if (t.step === 'response') v = t.status + (t.mpp_receipt ? ' with Payment-Receipt (' + t.mpp_receipt.status + ')' : '') + (t.x402_settlement ? ' with PAYMENT-RESPONSE (success ' + t.x402_settlement.success + ', transaction "' + t.x402_settlement.transaction + '")' : '');
+      else v = JSON.stringify(t);
+      return '<div class="row"><span class="ms">' + t.ms + ' ms</span><span class="k">' + esc(t.step) + '</span><span class="v">' + esc(v) + '</span></div>';
+    }).join('');
+    var body = typeof e.body === 'object' ? JSON.stringify(Object.fromEntries(Object.entries(e.body || {}).filter(function (kv) { return kv[0] !== 'headers'; }))) : String(e.body || '');
+    return '<div class="trace">' + rows + '<div class="row"><span class="ms"></span><span class="k">content</span><span class="v">' + esc(body.slice(0, 220)) + '</span></div></div>';
+  }
+  function render() {
+    if (!state) return;
+    var busy = state.busy, ch = state.channel;
+    var s1 = lastOf('shield-in'), s2 = lastOf('open'), s4 = lastOf('close');
+    $('b1').disabled = !!busy || state.granted;
+    $('b2').disabled = !!busy || !state.shielded || (ch && ch.status !== 'closed');
+    $('b4').disabled = !!busy || !ch || ch.status !== 'open' || !(ch.level > 10000);
+    $('s1').classList.toggle('done', !!(s1 && s1.ok)); $('s2').classList.toggle('done', !!(s2 && s2.ok)); $('s4').classList.toggle('done', !!(s4 && s4.ok));
+    var b = function (k) { return busy && busy.indexOf(k) === 0 ? '<div class="busy">' + esc(busy) + '… waiting for a block</div>' : ''; };
+    $('o1').innerHTML = b('shielding') + (s1 ? (s1.ok ? txChips(s1.result.tx) + '<div class="facts"><span class="chip">your shielded balance ' + zat(state.shielded) + '</span></div>' : '<div class="err">' + esc(s1.error) + '</div>') : '');
+    $('o2').innerHTML = b('opening') + (s2 ? (s2.ok ? txChips(s2.result.tx) + '<div class="facts"><span class="chip">capacity ' + zat(s2.result.capacity) + '</span><span class="chip">refund from block ' + s2.result.lock_height + '</span></div>' : '<div class="err">' + esc(s2.error) + '</div>') : '');
+    $('o4').innerHTML = b('closing') + (s4 ? (s4.ok ? txChips(s4.result.tx) + '<div class="facts"><span class="chip zero">your change, found with your viewing key: ' + zat(s4.result.change_note) + '</span></div>' : '<div class="err">' + esc(s4.error) + '</div>') : '');
+    if (ch) {
+      var pct = Math.min(100, Math.round(100 * ch.level / ch.capacity));
+      $('lvl').style.width = pct + '%';
+      $('lvltext').textContent = 'channel level ' + zat(ch.level) + ' of ' + zat(ch.capacity) + ' · ' + zat(ch.remaining) + ' left · ' + ch.status;
+    }
+    var canPay = ch && ch.status === 'open' && !busy;
+    Array.prototype.forEach.call(document.querySelectorAll('.shop button'), function (btn) { btn.disabled = !canPay; });
+    payments = (state.log || []).filter(function (l) { return l.kind === 'pay'; });
+    if (!paying && payments.length) $('o3').innerHTML = '<div class="facts"><span class="chip">latest payment: ' + esc(payments[payments.length - 1].merchant) + ' over ' + esc(payments[payments.length - 1].protocol.toUpperCase()) + '</span></div>' + trace(payments[payments.length - 1]);
+    $('kpay').textContent = payments.filter(function (p) { return p.ok; }).length;
+    var txs = (state.log || []).filter(function (l) { return l.ok && l.result && l.result.tx && l.result.tx.height; });
+    $('ktx').textContent = txs.length;
+    var rows = (state.log || []).map(function (l) {
+      if (l.kind === 'pay') return l.ok ? '<tr class="unseen"><td>payment</td><td>' + esc(l.merchant) + ' · ' + esc(l.protocol.toUpperCase()) + '</td><td class="num">not on chain</td></tr>' : '';
+      if (!l.ok || !l.result || !l.result.tx) return '';
+      var t = l.result.tx, outs = t.transparent_outputs || [];
+      var name = { 'shield-in': 'shield in', open: 'open channel', close: 'shield out' }[l.kind] || l.kind;
+      return '<tr><td>' + name + '</td><td class="mono">' + esc((t.txid || '').slice(0, 10)) + '…</td><td class="num">in ' + t.transparent_inputs + ' · out ' + (outs.length ? outs.join(',') : 'none') + '</td></tr>';
+    }).join('');
+    $('ledger').innerHTML = rows || '<tr class="unseen"><td>Nothing yet.</td></tr>';
+  }
+  function poll() { if (!sid) return; api('/api/session/' + sid).then(function (s) { state = s; render(); }).catch(function (e) { if (/no such session/.test(e.message)) { try { localStorage.removeItem('zchan-pg'); } catch (_) {} sid = null; start(); } }); }
+  function start() {
+    var q = /[?&]session=([0-9a-f]{32})/.exec(location.search);
+    if (q) sid = q[1];
+    else try { sid = localStorage.getItem('zchan-pg'); } catch (_) {}
+    var go = sid ? Promise.resolve({ id: sid }) : api('/api/session', {});
+    go.then(function (s) { sid = s.id; try { localStorage.setItem('zchan-pg', sid); } catch (_) {} poll(); })
+      .catch(function (e) { $('hdr').textContent = e.message; });
+  }
+  function act(path, btn) { btn.disabled = true; api('/api/session/' + sid + path, {}).then(poll).catch(function (e) { alertBox(btn, e.message); poll(); }); }
+  function alertBox(btn, msg) { var d = document.createElement('div'); d.className = 'err'; d.textContent = msg; btn.parentNode.appendChild(d); setTimeout(function () { d.remove(); }, 6000); }
+  $('b1').onclick = function () { act('/shield-in', this); };
+  $('b2').onclick = function () { act('/open', this); };
+  $('b4').onclick = function () { act('/close', this); };
+  $('shops').innerHTML = shops.map(function (s, i) {
+    return '<div class="shop"><div class="name">' + esc(s.label) + '</div><div class="path">' + esc(s.merchant) + ' · ' + esc((s.method || 'GET') + ' ' + s.path) + '</div>' +
+      '<div class="go"><button data-i="' + i + '" data-p="x402" disabled>Pay with x402</button><button class="ghost" data-i="' + i + '" data-p="mpp" disabled>Pay with MPP</button></div></div>';
+  }).join('');
+  $('shops').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    var s = shops[+b.dataset.i];
+    b.disabled = true; paying = true;
+    $('o3').innerHTML = '<div class="busy">paying ' + esc(s.merchant) + ' over ' + b.dataset.p.toUpperCase() + '…</div>';
+    api('/api/session/' + sid + '/pay', { merchant: s.merchant, path: s.path, method: s.method, body: s.body, protocol: b.dataset.p })
+      .then(function (e) { paying = false; poll(); })
+      .catch(function (e) { paying = false; $('o3').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  });
+  api('/api/info').then(function (i) {
+    info = i;
+    $('hdr').textContent = i.network + ' · solver ' + i.solver + ' · house ' + zat(i.house_shielded) + ' shielded · ' + i.sessions + '/' + i.max_sessions + ' sessions';
+    $('grant').textContent = zat(i.grant);
+    start();
+  }).catch(function (e) { $('hdr').textContent = 'playground unreachable: ' + e.message; });
+  setInterval(poll, 3000);
+})();
+</script>
+</body>
+</html>
