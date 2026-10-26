@@ -110,6 +110,22 @@ It then serves the playground on port 8080 (`PORT=` to change it). Each visitor 
   - The merchants and the solver can stay on localhost; only the playground needs to be public.
   - Each judge's payments cost the house the grant (160,000 zat) plus fees. 2,000,000 zat serves about 12 judges; send more for more.
 
+### Serving it from a laptop
+
+A Cloudflare quick tunnel gives a public HTTPS link with no account or open ports. The playground stays bound to localhost:
+
+```bash
+PORT=8088 ZCHAN_NODE_URL=<Zakura testnet RPC> scripts/playground.sh testnet
+```
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:8088
+```
+
+cloudflared prints a `https://….trycloudflare.com` link. The machine must stay awake and online while judges use it. A quick tunnel's link changes each time cloudflared restarts; for a fixed name, use a named tunnel on a Cloudflare account.
+
+**First run against a busy network:** each wallet reads every block since its starting height once. Testnet adds about 11 Ironwood commitments per block, so a wallet funded days ago takes a while to catch up over a remote RPC. Blocks are fetched 16 at a time. After that, each step reads only new blocks.
+
 ## 4. Recorded video
 
 ```bash

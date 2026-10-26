@@ -139,19 +139,25 @@ pub async fn spends(node: &Node, fvk: &FullViewingKey, notes: &[OwnedNote], anch
     Ok((out, anchor.ok_or(Error::Build("no notes".into()))?))
 }
 
-/// The fewest notes, largest first, that cover `need`.
-pub fn select(mut notes: Vec<OwnedNote>, need: u64) -> Option<Vec<OwnedNote>> {
+/// The fewest notes, largest first, that cover `amount` plus `fee(number of notes)`.
+pub fn select(mut notes: Vec<OwnedNote>, amount: u64, fee: impl Fn(usize) -> u64) -> Option<Vec<OwnedNote>> {
     notes.sort_by_key(|n| std::cmp::Reverse(n.value()));
     let mut got = 0;
     let mut out = vec![];
     for n in notes {
-        if got >= need {
+        if !out.is_empty() && got >= amount + fee(out.len()) {
             break;
         }
         got += n.value();
         out.push(n);
     }
-    (got >= need).then_some(out)
+    (!out.is_empty() && got >= amount + fee(out.len())).then_some(out)
+}
+
+/// ZIP 317 fee of a transaction with `t_in`/`t_out` transparent inputs/outputs (P2PKH or
+/// the channel's P2SH output) and `spends`/`outputs` Ironwood spends/outputs.
+pub fn zip317_fee(t_in: usize, t_out: usize, spends: usize, outputs: usize) -> u64 {
+    5_000 * (t_in.max(t_out) + spends.max(outputs)).max(2) as u64
 }
 
 // ---- Persistent scanner -----------------------------------------------------------------
@@ -183,6 +189,11 @@ pub struct Scanner {
     notes: Vec<Tracked>,
 }
 
+/// The number of Ironwood note commitments in the tree after block `h`.
+pub async fn tree_size(node: &Node, h: u32) -> Result<u64> {
+    Ok(tree_at(node, h).await?.size() as u64)
+}
+
 async fn tree_at(node: &Node, h: u32) -> Result<Tree> {
     tree_state(&node.call("z_gettreestate", json!([h.to_string()])).await?)
 }
@@ -200,10 +211,16 @@ impl Scanner {
         Ok(Self { scanned_to: from, tree: tree_at(node, from).await?, notes: vec![] })
     }
 
-    /// Heights in `(self.scanned_to, to]` whose block grew the Ironwood tree.
+    /// Heights in `(self.scanned_to, to]` whose block grew the Ironwood tree. Where most
+    /// blocks did (busy networks), that is every height, without bisecting.
     async fn grown(&self, node: &Node, to: u32) -> Result<Vec<u32>> {
+        let size_to = tree_at(node, to).await?.size();
+        let span = (to - self.scanned_to) as usize;
+        if size_to.saturating_sub(self.tree.size()) > span / 4 {
+            return Ok((self.scanned_to + 1..=to).collect());
+        }
         let mut out = vec![];
-        let mut stack = vec![(self.scanned_to, self.tree.size(), to, tree_at(node, to).await?.size())];
+        let mut stack = vec![(self.scanned_to, self.tree.size(), to, size_to)];
         while let Some((lo, s_lo, hi, s_hi)) = stack.pop() {
             if s_lo == s_hi || hi <= lo {
                 continue;
@@ -231,8 +248,12 @@ impl Scanner {
             .iter()
             .map(|s| PreparedIncomingViewingKey::new(&fvk.to_ivk(*s)))
             .collect();
-        for h in self.grown(node, to).await? {
-            for (txid, i, a) in block_actions(node, h).await? {
+        // Blocks are fetched 16 at a time and processed in height order.
+        use futures::StreamExt;
+        let heights = self.grown(node, to).await?;
+        let mut blocks = futures::stream::iter(heights.into_iter().map(|h| async move { (h, block_actions(node, h).await) })).buffered(16);
+        while let Some((h, actions)) = blocks.next().await {
+            for (txid, i, a) in actions? {
                 self.notes.retain(|t| t.nf != *a.nullifier());
                 let l = leaf(&a.cmx().to_bytes())?;
                 self.tree.append(l).map_err(|_| Error::Build("tree full".into()))?;

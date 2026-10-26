@@ -60,29 +60,32 @@ pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32, s
     let sk = ctx.wallet.channel_key(idx);
     let tip = ctx.tip().await?;
     let target = tip + 1;
-    // Covers the channel, a generous fee and change.
-    let need = capacity + 40_000 + crate::channel::MIN_CHANGE;
     let funding = if shielded {
         let notes = ctx.shielded_notes().await?;
         let have: u64 = notes.iter().map(|n| n.value()).sum();
-        let pick = zchan_tx::notes::select(notes, need)
+        // The channel output and shielded change: ZIP 317 for n spends, one transparent
+        // output and one Ironwood output.
+        let fee = |n: usize| zchan_tx::notes::zip317_fee(0, 1, n, 1);
+        let pick = zchan_tx::notes::select(notes, capacity + crate::channel::MIN_CHANGE, fee)
             .ok_or_else(|| Error::Funding(format!("shielded balance {have} cannot fund {capacity}")))?;
         let (spends, anchor) = ctx.shielded_spends(&pick).await?;
         Funding::Shielded { spends, anchor, sk: ctx.wallet.ironwood_sk(0), change: ctx.wallet.shielded_change() }
     } else {
         let mut coins = ctx.coins().await?;
         coins.sort_by_key(|(c, _)| std::cmp::Reverse(c.value));
+        // The channel output and change: ZIP 317 for n P2PKH inputs and two outputs.
+        let need = |n: usize| capacity + crate::channel::MIN_CHANGE + zchan_tx::notes::zip317_fee(n, 2, 0, 0);
         let mut pick = vec![];
         let mut got = 0;
         for c in coins {
-            if got >= need {
+            if !pick.is_empty() && got >= need(pick.len()) {
                 break;
             }
             got += c.0.value;
             pick.push(c);
         }
-        if got < need {
-            return Err(Error::Funding(format!("transparent coins hold {got}; {capacity} needs about {need}")));
+        if pick.is_empty() || got < need(pick.len()) {
+            return Err(Error::Funding(format!("transparent coins hold {got}; a {capacity} channel needs {}", need(pick.len().max(1)))));
         }
         // Change goes to this channel's own coin address, watched from now on.
         ctx.store.tx(|c| Ctx::watch_coin_index(c, idx))?;
@@ -210,7 +213,7 @@ pub async fn send_shielded(ctx: &Ctx, to: orchard::Address, amount: u64) -> Resu
     let coins_lock = ctx.lock("coins");
     let _g = coins_lock.lock().await;
     let notes = ctx.shielded_notes().await?;
-    let pick = zchan_tx::notes::select(notes, amount + 40_000)
+    let pick = zchan_tx::notes::select(notes, amount, |n| zchan_tx::notes::zip317_fee(0, 0, n, 2))
         .ok_or_else(|| Error::Funding(format!("shielded balance cannot send {amount}")))?;
     let have: u64 = pick.iter().map(|n| n.value()).sum();
     let tip = ctx.tip().await?;

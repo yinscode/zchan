@@ -219,8 +219,14 @@ async fn shield_in(State(pg): State<Arc<Playground>>, Path(id): Path<String>) ->
 async fn open(State(pg): State<Arc<Playground>>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     let s = get_session(&pg, &id).await?;
     start(&s, "opening a channel").await?;
-    let (cap, lock) = (pg.settings.capacity, pg.settings.lock_blocks);
+    let (max_cap, lock) = (pg.settings.capacity, pg.settings.lock_blocks);
     spawn_job(s, "open", move |agent| async move {
+        // The default capacity, or as much as the balance covers after the fee and change.
+        let have: u64 = agent.ctx.shielded_notes().await?.iter().map(|n| n.value()).sum();
+        let cap = max_cap.min(have.saturating_sub(zchan_tx::notes::zip317_fee(0, 1, 2, 1) + crate::channel::MIN_CHANGE));
+        if cap < 20_000 {
+            return Err(Error::Funding(format!("shielded balance {have} is too small to open a channel")));
+        }
         let row = agent.open_shielded(cap, lock).await?;
         let txid = row.id.split(':').next().unwrap_or_default().to_string();
         Ok(json!({"channel": row.id, "capacity": cap, "lock_height": row.terms.lock_height, "tx": tx_facts(&agent.ctx, &txid).await}))
