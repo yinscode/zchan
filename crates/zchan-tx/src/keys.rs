@@ -62,3 +62,37 @@ pub fn encode_regtest(addr: &TransparentAddress) -> String {
 pub fn miner() -> SecretKey {
     dev_key("miner")
 }
+
+/// A unified address whose one receiver is an Ironwood address (Ironwood shares the
+/// Orchard receiver type), for wallets and faucets that pay shielded addresses.
+pub fn unified_address(addr: &orchard::Address, net: NetworkType) -> String {
+    use zcash_address::unified::{self, Encoding, Receiver, Uitem};
+    unified::Address::try_from_items(unified::Revision::R0, vec![Uitem::Data(Receiver::Orchard(addr.to_raw_address_bytes()))])
+        .expect("one shielded receiver is a valid unified address")
+        .encode(&net)
+}
+
+/// The Ironwood address in a unified address (its Orchard receiver), with the network.
+pub fn decode_unified(s: &str) -> Option<(NetworkType, orchard::Address)> {
+    use zcash_address::unified::{self, Container, Encoding, Receiver};
+    let (net, _, ua) = unified::Address::decode(s).ok()?;
+    ua.items().into_iter().find_map(|r| match r {
+        Receiver::Orchard(raw) => Option::from(orchard::Address::from_raw_address_bytes(&raw)).map(|a| (net, a)),
+        _ => None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unified_roundtrip() {
+        let w = crate::wallet::Wallet::dev("ua");
+        let a = w.shielded_address(0);
+        let ua = unified_address(&a, NetworkType::Test);
+        assert!(ua.starts_with("utest1"), "{ua}");
+        let (net, back) = decode_unified(&ua).unwrap();
+        assert_eq!((net, back.to_raw_address_bytes()), (NetworkType::Test, a.to_raw_address_bytes()));
+    }
+}

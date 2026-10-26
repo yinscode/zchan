@@ -8,7 +8,8 @@
 //! zchan-agent shield                          move transparent coins to the shielded account
 //! zchan-agent balance                         transparent and shielded balances
 //! zchan-agent notes                           unspent shielded notes
-//! zchan-agent shielded-address                this party's Ironwood address (raw, hex)
+//! zchan-agent shielded-address [--ua]         this party's Ironwood address (raw hex, or a
+//!                                             unified address any shielded wallet can pay)
 //! zchan-agent send-shielded ADDRESS_HEX ZAT   pay another party's Ironwood address
 //! zchan-agent open --capacity ZAT --lock-blocks N [--shielded]
 //! zchan-agent get URL [--mpp] [--method M --body B]
@@ -53,6 +54,7 @@ async fn main() {
             Some(txid) => println!("{txid}"),
             None => die("no confirmed transparent coins to shield"),
         },
+        Some("shielded-address") if a.flag("ua") => println!("{}", zchan_tx::keys::unified_address(&ctx.wallet.shielded_address(0), ctx.net)),
         Some("shielded-address") => println!("{}", hex::encode(ctx.wallet.shielded_address(0).to_raw_address_bytes())),
         Some("send-shielded") => {
             let (to, amount) = match a.positional.as_slice() {
