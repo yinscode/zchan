@@ -3,147 +3,233 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>zchan playground</title>
+<title>Zchan Playground</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23000'/%3E%3Cpath d='M5 6h14L5 18h14' fill='none' stroke='%23EDEDED' stroke-width='1.6' stroke-linejoin='round'/%3E%3Ccircle cx='5' cy='6' r='2.2' fill='%23F4BC45'/%3E%3Ccircle cx='19' cy='18' r='2.2' fill='%23F4BC45'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Public+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a workbench. Four steps down the left, a live ledger of what the chain saw on
-   the right; payment traces open under the step that made them. */
+/* Layout: an instrument. A progress rail (fund, open, pay, settle) on top, the four
+   steps down the left as one bordered column, and what the chain saw on the right.
+   Gold marks the current action, mint what is done and verified, coral real failures. */
 :root {
-  --bg: #f1f2ec; --panel: #fbfbf7; --ink: #15201c; --muted: #59655f; --line: #d5d9cf;
-  --gold: #b9800a; --gold-soft: #f4e3b5; --ok: #1d7556; --bad: #b42318; --term: #15201c; --term-ink: #dfe6df; --term-dim: #8a978f;
-  --display: "Bricolage Grotesque", "Avenir Next", sans-serif; --body: "Public Sans", "Helvetica Neue", Arial, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --bg: #000000; --raise: #0A0A0A; --card: #1F1F1F;
+  --line: rgba(255,255,255,.14); --line-hi: rgba(255,255,255,.25);
+  --fg: #EDEDED; --fg2: #A1A1A1; --fg3: #878787;
+  --gold: #F4BC45; --gold-text: #F4BC45; --on-gold: #000000;
+  --mint: #62D5A0; --blue: #4D8DFF; --coral: #F27D68;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #0f1513; --panel: #151d1a; --ink: #e5ebe4; --muted: #9ba79f; --line: #26322d; --gold: #f0b43a; --gold-soft: #3a2f14;
-    --ok: #55cf9f; --bad: #f2867c; --term: #0a0f0d; color-scheme: dark; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #FFFFFF; --raise: #FAFAFA; --card: #F2F2F2; --line: #EAEAEA; --line-hi: #CFCFCF;
+    --fg: #171717; --fg2: #666666; --fg3: #737373;
+    --gold: #F4BC45; --gold-text: #B97700; --on-gold: #171717;
+    --mint: #1A8754; --blue: #2563EB; --coral: #C8432B;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #FFFFFF; --raise: #FAFAFA; --card: #F2F2F2; --line: #EAEAEA; --line-hi: #CFCFCF;
+  --fg: #171717; --fg2: #666666; --fg3: #737373;
+  --gold: #F4BC45; --gold-text: #B97700; --on-gold: #171717;
+  --mint: #1A8754; --blue: #2563EB; --coral: #C8432B;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--body); }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); }
-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
-header b { font: 800 26px/1 var(--display); letter-spacing: -0.02em; }
-header .meta { font: 500 13px/1.4 var(--mono); color: var(--muted); }
-h1 { font: 800 clamp(30px, 4.6vw, 52px)/1.02 var(--display); letter-spacing: -0.02em; margin: 28px 0 10px; text-wrap: balance; }
-h1 em { font-style: normal; color: var(--gold); }
-.lede { color: var(--muted); max-width: 70ch; font-size: 18px; margin: 0 0 26px; }
-.grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 26px; align-items: start; }
-.step { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; }
-.step.done { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
-.step h2 { font: 700 20px/1.2 var(--display); margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; }
-.step h2 .n { font: 500 13px/1 var(--mono); color: var(--gold); }
-.step p { margin: 6px 0 12px; color: var(--muted); }
-button { font: 700 15px/1 var(--body); padding: 11px 18px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
-button.ghost { background: transparent; color: var(--ink); }
-button:disabled { opacity: 0.4; cursor: not-allowed; }
-button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.facts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; font: 500 13px/1 var(--mono); }
-.chip { padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); }
-.chip.zero { border-color: var(--ok); color: var(--ok); }
-.chip.gold { background: var(--gold-soft); border-color: transparent; color: var(--ink); }
-.busy { font: 500 13px/1.4 var(--mono); color: var(--gold); margin-top: 10px; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+p { margin: 0; }
+h1, h2, h3 { margin: 0; font-weight: 500; text-wrap: balance; }
+.label { font: 500 12px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--fg3); }
+.wrap { max-width: 1200px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 56px; }
+
+/* Header */
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap; padding-block: 18px; border-bottom: 1px solid var(--line); }
+.mark { display: inline-flex; align-items: center; gap: 10px; color: var(--fg); text-decoration: none; }
+.mark:hover { text-decoration: none; }
+.mark b { font: 600 19px/1 var(--sans); letter-spacing: -0.04em; }
+.mark b span { color: var(--fg2); font-weight: 450; }
+.glyph { display: inline-block; width: 30px; height: 10px; position: relative; }
+.glyph::before { content: ""; position: absolute; left: 4px; right: 4px; top: 4.5px; height: 1px; background: var(--fg3); }
+.glyph::after { content: ""; position: absolute; left: 0; top: 1px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 22px 0 0 var(--gold); }
+.status { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pill { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--line-hi); border-radius: 6px; padding: 7px 9px; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--fg3); margin: 0 6px 1px 4px; vertical-align: middle; }
+.dot.on { background: var(--mint); }
+.dot.off { background: var(--coral); }
+#hdr { font: 13px/1.3 var(--mono); color: var(--fg3); }
+
+/* Intro and progress rail */
+.intro { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding-block: 36px 28px; }
+h1 { font-size: clamp(30px, 4vw, 40px); line-height: 1.05; letter-spacing: -0.045em; font-weight: 480; }
+.intro p { color: var(--fg2); font-size: 17px; max-width: 72ch; }
+.rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 24px; }
+.rail .r { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: center; }
+.rail .r::after { content: ""; position: absolute; left: 30px; right: 14px; top: 50%; height: 1px; background: var(--line-hi); z-index: 0; }
+.rail .r:last-child::after { display: none; }
+.rail .r span.label { position: relative; z-index: 1; background: var(--bg); padding-right: 8px; justify-self: start; }
+.badge { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--fg3); display: grid; place-items: center; font: 500 11px/1 var(--mono); color: var(--fg3); background: var(--bg); transition: background-color .18s, border-color .18s, color .18s; }
+.done .badge { background: var(--mint); border-color: var(--mint); color: var(--bg); }
+.now .badge { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+.now.working .badge { animation: pulse 1s infinite alternate; }
+.now span.label { color: var(--fg); }
+@keyframes pulse { to { opacity: .45; } }
+
+/* Workbench */
+.grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.steps { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.step { padding: 22px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.step + .step { border-top: 1px solid var(--line); }
+.step .h { display: flex; align-items: center; gap: 12px; }
+.step h2 { font-size: 19px; letter-spacing: -0.02em; font-weight: 520; }
+.step .tag { margin-left: auto; font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--fg3); }
+.step.now .tag { color: var(--gold-text); }
+.step.done .tag { color: var(--mint); }
+.step p.d { color: var(--fg2); font-size: 15px; max-width: 70ch; }
+.step p.d b { color: var(--fg); font-weight: 520; }
+button { font: 500 14px/1 var(--sans); height: 38px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--line-hi); background: transparent; color: var(--fg); cursor: pointer; justify-self: start; transition: border-color .12s, background-color .12s; }
+button:hover:not(:disabled) { border-color: var(--fg3); background: var(--raise); }
+button.primary { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+button.primary:hover:not(:disabled) { background: var(--gold); filter: brightness(1.06); }
+button:disabled { opacity: .38; cursor: not-allowed; }
+.facts { display: flex; gap: 6px; flex-wrap: wrap; font: 13px/1.2 var(--mono); }
+.chip { padding: 7px 9px; border-radius: 6px; border: 1px solid var(--line); color: var(--fg2); }
+.chip.gold { color: var(--fg); border-color: var(--line-hi); background: var(--card); }
+.chip.zero { border-color: var(--mint); color: var(--mint); }
+.busy { font: 500 13px/1.4 var(--mono); color: var(--gold-text); }
 .busy::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-right: 8px; animation: pulse 1s infinite alternate; }
-@keyframes pulse { to { opacity: 0.25; } }
-.err { color: var(--bad); font-size: 14px; margin-top: 8px; }
-.meter { height: 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; margin: 10px 0 4px; }
-.meter i { display: block; height: 100%; background: var(--gold); width: 0; transition: width 0.4s; }
-.shops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
-.shop { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; background: var(--bg); min-width: 0; }
-.shop .name { font: 700 15px/1.2 var(--body); }
-.shop .path { font: 12px/1.3 var(--mono); color: var(--muted); word-break: break-all; }
+.why { font-size: 13px; color: var(--fg3); max-width: 70ch; }
+.err { color: var(--coral); font-size: 14px; }
+.txl { font: 12px/1.4 var(--mono); color: var(--fg3); }
+.meter { height: 6px; border-radius: 3px; background: var(--card); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--gold); width: 0; transition: width .24s; }
+#lvltext { font: 13px/1.3 var(--mono); color: var(--fg2); font-variant-numeric: tabular-nums; }
+.shops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.shop { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; background: var(--raise); }
+.shop .name { display: flex; justify-content: space-between; gap: 8px; font-weight: 520; font-size: 15px; }
+.shop .name span { font: 13px/1.4 var(--mono); color: var(--fg2); font-weight: 400; white-space: nowrap; }
+.shop .path { font: 12px/1.4 var(--mono); color: var(--fg3); word-break: break-all; }
 .shop .go { display: flex; gap: 6px; flex-wrap: wrap; }
-.shop button { padding: 8px 12px; font-size: 13px; }
-.trace { background: var(--term); color: var(--term-ink); border-radius: 12px; padding: 14px 16px; margin-top: 14px; font: 12.5px/1.55 var(--mono); overflow-x: auto; }
-.trace .row { display: grid; grid-template-columns: 56px 92px minmax(0, 1fr); gap: 10px; padding: 3px 0; }
-.trace .ms { color: var(--term-dim); text-align: right; }
-.trace .k { color: #f0b43a; }
-.trace .v { white-space: pre-wrap; word-break: break-word; }
-.ledger { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
-.ledger h3 { font: 700 18px/1.2 var(--display); margin: 0 0 4px; }
-.ledger .sub { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
-.ledger table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-.ledger td { padding: 8px 6px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-.ledger td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.ledger .unseen td { color: var(--muted); }
-.big { font: 800 34px/1 var(--display); font-variant-numeric: tabular-nums; }
-.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 6px 0 14px; }
-.kpis div { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--bg); }
-.kpis span { display: block; font: 500 11px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.mono { font-family: var(--mono); font-size: 13px; word-break: break-all; }
-.txl { font: 12px/1.4 var(--mono); color: var(--muted); margin-top: 8px; }
-.wins { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 28px; }
-.wins div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
-.wins b { display: block; font: 800 24px/1.1 var(--display); color: var(--gold); letter-spacing: -0.01em; }
-.wins span { display: block; color: var(--muted); font-size: 14px; margin-top: 4px; }
-.why { font-size: 13px; color: var(--muted); margin-top: 4px; }
-.kpis.two { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: -4px; }
-.kpis .gold { color: var(--gold); }
-a { color: inherit; }
-footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
-@media (max-width: 900px) { .grid, .wins { grid-template-columns: minmax(0, 1fr); } .ledger { position: static; } .shops { grid-template-columns: minmax(0, 1fr); } }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+.shop button { height: 32px; padding: 0 11px; font-size: 13px; }
+.trace { border: 1px solid var(--line); border-radius: 8px; background: var(--raise); padding: 12px 14px; font: 12.5px/1.55 var(--mono); overflow-x: auto; }
+.trace .row { display: grid; grid-template-columns: 52px 76px minmax(0, 1fr); gap: 10px; padding: 3px 0; }
+.trace .ms { color: var(--fg3); text-align: right; font-variant-numeric: tabular-nums; }
+.trace .k { color: var(--gold-text); }
+.trace .v { white-space: pre-wrap; word-break: break-word; color: var(--fg2); }
+
+/* What the chain saw */
+.ledger { position: sticky; top: 16px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ledger .lh { padding: 18px 20px 14px; display: grid; gap: 4px; border-bottom: 1px solid var(--line); }
+.ledger h3 { font-size: 17px; letter-spacing: -0.02em; font-weight: 520; }
+.ledger .sub { color: var(--fg3); font-size: 13px; }
+.stat { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 13px 20px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--fg2); }
+.stat b { font: 480 22px/1 var(--sans); letter-spacing: -0.03em; color: var(--fg); font-variant-numeric: tabular-nums; }
+.stat b.good { color: var(--mint); }
+.ledger table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ledger td { padding: 9px 20px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ledger td + td { padding-left: 0; text-align: right; font-family: var(--mono); font-size: 12px; }
+.ledger tr.tx td:first-child { color: var(--fg); }
+.ledger tr.tx td + td { color: var(--mint); }
+.ledger tr.unseen td { color: var(--fg3); }
+.ledger tr:last-child td { border-bottom: 0; }
+.ledger .foot { padding: 14px 20px; font-size: 13px; color: var(--fg3); border-top: 1px solid var(--line); }
+
+footer { margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 12px 24px; flex-wrap: wrap; color: var(--fg3); font-size: 13px; }
+footer p { max-width: 80ch; }
+.theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; }
+.theme button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; font-size: 12px; color: var(--fg2); }
+.theme button[aria-pressed="true"] { background: var(--card); color: var(--fg); }
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .ledger { position: static; }
+}
+@media (max-width: 560px) {
+  .rail { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 14px 12px; }
+  .rail .r { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 6px; }
+  .rail .r::after { left: calc(50% + 15px); right: calc(-50% + 15px); top: 11px; }
+  .rail .r span.label { padding: 0; font-size: 10px; }
+  .shops { grid-template-columns: minmax(0, 1fr); }
+  .step { padding: 18px 16px; }
+  .trace .row { grid-template-columns: 48px minmax(0, 1fr); gap: 2px 10px; }
+  .trace .v { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header><b>zchan playground</b><span class="meta" id="hdr">connecting…</span></header>
-  <h1>Shield in. Pay per request. <em>Shield out.</em></h1>
-  <p class="lede">This page gives you an agent of your own on a live Zcash network. Fund it privately, open one payment channel, pay three merchants over x402 and MPP, then close. The ledger on the right shows exactly what the chain saw.</p>
-  <div class="wins">
-    <div><b>Sub-second payments</b><span>Each payment is one signed channel state, paid and answered in milliseconds. No block to wait for.</span></div>
-    <div><b>Gasless</b><span>No transaction per payment, so no network fee per payment. Only the open and the close go on chain.</span></div>
-    <div><b>Private</b><span>Funded from Ironwood and closed to Ironwood. The chain sees a channel, not your payments.</span></div>
+  <header>
+    <a class="mark" href="/" aria-label="Zchan home"><b>Zchan <span>Playground</span></b><span class="glyph" aria-hidden="true"></span></a>
+    <div class="status"><span id="hdr">connecting…</span><span class="pill" id="net"><span class="dot" id="netdot"></span><span id="netname">connecting</span></span></div>
+  </header>
+
+  <div class="intro">
+    <h1>Try Zchan on Zcash testnet.</h1>
+    <p>You get an agent of your own. Fund it privately, open one channel, pay merchants over x402 or MPP, then settle. Payments take milliseconds; opening and settling wait for testnet blocks.</p>
+  </div>
+
+  <div class="rail" role="list" aria-label="Progress">
+    <div class="r" id="p1" role="listitem"><span class="badge">1</span><span class="label">Fund</span></div>
+    <div class="r" id="p2" role="listitem"><span class="badge">2</span><span class="label">Open</span></div>
+    <div class="r" id="p3" role="listitem"><span class="badge">3</span><span class="label">Pay</span></div>
+    <div class="r" id="p4" role="listitem"><span class="badge">4</span><span class="label">Settle</span></div>
   </div>
 
   <div class="grid">
-    <div>
+    <div class="steps">
       <section class="step" id="s1">
-        <h2><span class="n">1</span>Shield in</h2>
-        <p>The house wallet sends your agent <b id="grant">—</b> as an Ironwood note. Nothing about it is transparent. It waits for one block.</p>
-        <button id="b1">Shield in</button>
+        <div class="h"><span class="badge">1</span><h2>Fund your agent</h2><span class="tag" id="t1"></span></div>
+        <p class="d">The house wallet sends your agent <b id="grant">—</b> as an Ironwood note. Nothing about it is transparent.</p>
+        <button id="b1" class="primary">Shield in</button>
         <div id="o1"></div>
       </section>
       <section class="step" id="s2">
-        <h2><span class="n">2</span>Open a channel</h2>
-        <p>Your agent funds one channel to the solver straight from that note. Before the funding is signed, the solver signs your refund, so the money can always come back. One block.</p>
+        <div class="h"><span class="badge">2</span><h2>Open a channel</h2><span class="tag" id="t2"></span></div>
+        <p class="d">Your agent funds one channel to the solver straight from that note. The solver signs your refund before the funding is signed, so the money can always come back.</p>
         <button id="b2" disabled>Open channel</button>
         <div id="o2"></div>
       </section>
       <section class="step" id="s3">
-        <h2><span class="n">3</span>Pay merchants</h2>
-        <p>This is the fast part. Each payment is a signed channel state: it completes in milliseconds, with no transaction, no block and no network fee (the solver's own small service fee is shown in the quote). Pick a protocol and a merchant. The solver pays the merchant on its own channel, and the merchant signs a receipt your agent presents.</p>
+        <div class="h"><span class="badge">3</span><h2>Pay merchants</h2><span class="tag" id="t3"></span></div>
+        <p class="d"><b>The fast part.</b> Each payment is one signed channel state: no transaction, no block and no network fee. The solver pays the merchant on its own channel, and the merchant signs a receipt your agent presents. The solver's 100 zat service fee shows in each quote.</p>
         <div class="meter" aria-hidden="true"><i id="lvl"></i></div>
-        <div class="mono" id="lvltext">no channel yet</div>
+        <div id="lvltext">No channel yet</div>
         <div class="shops" id="shops"></div>
         <div id="o3"></div>
       </section>
       <section class="step" id="s4">
-        <h2><span class="n">4</span>Shield out</h2>
-        <p>Close cooperatively: the solver builds the close, and your agent signs only after decrypting its change with its own key. Both sides are paid to Ironwood. One block. A shielded close costs 10,000 zat more than a plain one, paid from the solver's share, so it needs more than 10,000 zat of payments first.</p>
-        <button id="b4" disabled>Close channel</button>
+        <div class="h"><span class="badge">4</span><h2>Settle</h2><span class="tag" id="t4"></span></div>
+        <p class="d">A cooperative close: the solver builds it, and your agent signs only after decrypting its own change. Both sides are paid to Ironwood. It needs more than 10,000 zat of payments first, because a shielded close costs that much more than a plain one, paid from the solver's share.</p>
+        <button id="b4" disabled>Settle channel</button>
         <div id="o4"></div>
       </section>
     </div>
 
     <aside class="ledger" aria-live="polite">
-      <h3>What the chain saw</h3>
-      <p class="sub">Each step, and what anyone watching the blockchain can learn from it.</p>
-      <div class="kpis">
-        <div><span>Off-chain payments</span><b class="big" id="kpay">0</b></div>
-        <div><span>On-chain payments</span><b class="big" id="kptx">0</b></div>
-        <div><span>Chain txs (open/close)</span><b class="big" id="ktx">0</b></div>
-      </div>
-      <div class="kpis two">
-        <div><span>Typical payment, end to end</span><b class="big gold" id="kms">–</b></div>
-        <div><span>Network fees on payments</span><b class="big gold">0 zat</b></div>
-      </div>
+      <div class="lh"><h3>What the chain saw</h3><p class="sub">Each step, and what anyone watching the blockchain learns from it.</p></div>
+      <div class="stat"><span>Chain transactions</span><b id="ktx">0</b></div>
+      <div class="stat"><span>Off-chain payments</span><b id="kpay">0</b></div>
+      <div class="stat"><span>Payment network fees</span><b class="good">0 zat</b></div>
+      <div class="stat"><span>Typical payment</span><b id="kms">–</b></div>
       <table><tbody id="ledger"><tr class="unseen"><td>Nothing yet.</td></tr></tbody></table>
-      <p class="sub" style="margin-top:14px">Public on chain: each channel's capacity and when it opened and closed. Hidden: where your funds came from, how the channel split, and every payment. The solver does see which merchant you paid.</p>
+      <p class="foot">Public: each channel's size and when it opened and closed. Hidden: where your funds came from, how the channel split, and every payment. The solver does see which merchant you paid.</p>
     </aside>
   </div>
-  <footer>Testnet funds only. One grant per session. The solver is trusted with one payment at a time; the chain enforces refunds and closes. Source and docs: docs/design.md, docs/privacy.md.</footer>
+
+  <footer>
+    <p>Testnet funds only, one grant per session. The solver is trusted with one payment at a time; the chain enforces refunds and closes.</p>
+    <div class="theme" role="group" aria-label="Theme">
+      <button type="button" id="theme-system" data-theme-set="system" aria-pressed="true">System</button>
+      <button type="button" id="theme-light" data-theme-set="light" aria-pressed="false">Light</button>
+      <button type="button" id="theme-dark" data-theme-set="dark" aria-pressed="false">Dark</button>
+    </div>
+  </footer>
 </div>
 
 <script>
@@ -158,10 +244,10 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     return Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2) + ' · ' + (n ? n + ' new block' + (n > 1 ? 's' : '') + ' so far' : 'waiting for the next block');
   }
   var shops = [
-    { merchant: 'merchant-a', path: '/paid/weather', label: 'Weather report' },
-    { merchant: 'merchant-b', path: '/paid/news', label: 'News brief' },
-    { merchant: 'merchant-d', path: '/api/search?q=zcash', label: 'Search API (proxied)' },
-    { merchant: 'merchant-d', path: '/api/echo', label: 'Echo API, POST (proxied)', method: 'POST', body: 'hello from a judge' }
+    { merchant: 'merchant-a', path: '/paid/weather', label: 'Weather report', price: 5000 },
+    { merchant: 'merchant-b', path: '/paid/news', label: 'News brief', price: 4000 },
+    { merchant: 'merchant-d', path: '/api/search?q=zcash', label: 'Search API, proxied', price: 3000 },
+    { merchant: 'merchant-d', path: '/api/echo', label: 'Echo API, proxied', price: 2000, method: 'POST', body: 'hello from a judge' }
   ];
   function zat(n) { return (n || 0).toLocaleString('en-US') + ' zat'; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -197,7 +283,7 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
   function trace(e) {
     if (e.error) {
       var m = /has (\d+) left, needs (\d+)/.exec(e.error);
-      return '<div class="err">' + (m ? 'Your channel has ' + zat(+m[1]) + ' left and this call costs ' + zat(+m[2]) + '. Close it to get the rest back.' : esc(e.error)) + '</div>';
+      return '<div class="err">' + (m ? 'Your channel has ' + zat(+m[1]) + ' left and this call costs ' + zat(+m[2]) + '. Settle it to get the rest back.' : esc(e.error)) + '</div>';
     }
     var rows = (e.trace || []).map(function (t) {
       var v;
@@ -213,6 +299,18 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     var body = typeof e.body === 'object' ? JSON.stringify(Object.fromEntries(Object.entries(e.body || {}).filter(function (kv) { return kv[0] !== 'headers'; }))) : String(e.body || '');
     return '<div class="trace">' + rows + '<div class="row"><span class="ms"></span><span class="k">content</span><span class="v">' + esc(body.slice(0, 220)) + '</span></div></div>';
   }
+  // Progress: done steps in mint, the current one in gold, later ones gray.
+  function progress(done, working) {
+    var cur = done.indexOf(false), tags = ['funded', 'open', 'paid', 'settled'];
+    done.forEach(function (d, i) {
+      var now = i === cur, n = i + 1;
+      [$('p' + n), $('s' + n)].forEach(function (el) {
+        el.classList.toggle('done', d); el.classList.toggle('now', now); el.classList.toggle('working', now && working);
+        el.querySelector('.badge').textContent = d ? '✓' : String(n);
+      });
+      $('t' + n).textContent = d ? tags[i] : now ? (working ? 'working' : 'next') : '';
+    });
+  }
   function render() {
     if (!state) return;
     var busy = state.busy, ch = state.channel;
@@ -220,12 +318,17 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     $('b1').disabled = !!busy || state.granted;
     $('b2').disabled = !!busy || state.shielded < ((info && info.min_open) || 1) || (ch && ['closed', 'abandoned', 'expired'].indexOf(ch.status) < 0);
     $('b4').disabled = !!busy || !ch || ch.status !== 'open' || !(ch.level > 10000);
-    $('s1').classList.toggle('done', !!(s1 && s1.ok)); $('s2').classList.toggle('done', !!(s2 && s2.ok)); $('s4').classList.toggle('done', !!(s4 && s4.ok));
+    $('b1').classList.toggle('primary', !$('b1').disabled);
+    $('b2').classList.toggle('primary', !$('b2').disabled);
+    $('b4').classList.toggle('primary', !$('b4').disabled);
+    var settled = !!(ch && ch.status === 'closed' && s4 && s4.ok);
+    var funding = !!(busy && busy.indexOf('shielding') === 0);
+    progress([!!(state.granted && !funding && (!s1 || s1.ok)),!!(ch && s2 && s2.ok), !!(ch && ch.level > 0), settled], !!busy);
     var b = function (k) { return busy && busy.indexOf(k) === 0 ? '<div class="busy">' + esc(busy) + ' · <span id="waited">' + waitText() + '</span></div>' +
       '<div class="why">Sent in about a second; now a miner has to include it. On testnet today most blocks come from a miner that rarely includes transactions, so this often takes one to three minutes. Payments never wait for this.</div>' : ''; };
     $('o1').innerHTML = b('shielding') + step('shield-in', s1, s1 && s1.ok ? [['You received ' + zat(s1.result.amount) + ', shielded', 'gold'], ['Your balance: ' + zat(state.shielded)]] : []);
     var low = state.shielded < ((info && info.min_open) || 0) && !(ch && ch.status === 'open') && !busy && state.granted;
-    $('o2').innerHTML = b('opening') + (low ? '<div class="err">Your balance (' + zat(state.shielded) + ') has been spent on payments and fees: another channel needs ' + zat(info.min_open) + '.</div><button class="ghost" id="fresh" style="margin-top:10px">Start a new session</button>' : '') + step('open', low && s2 && !s2.ok ? null : s2, s2 && s2.ok ? [['Channel of ' + zat(s2.result.capacity), 'gold'], ['Safety refund from block ' + Number(s2.result.lock_height).toLocaleString('en-US')]] : []);
+    $('o2').innerHTML = b('opening') + (low ? '<div class="err">Your balance (' + zat(state.shielded) + ') has been spent on payments and fees: another channel needs ' + zat(info.min_open) + '.</div><button class="primary" id="fresh" style="margin-top:10px">Start a new session</button>' : '') + step('open', low && s2 && !s2.ok ? null : s2, s2 && s2.ok ? [['Channel of ' + zat(s2.result.capacity), 'gold'], ['Safety refund from block ' + Number(s2.result.lock_height).toLocaleString('en-US')]] : []);
     $('o4').innerHTML = b('closing') + step('close', s4, s4 && s4.ok ? [['Your change: ' + zat(s4.result.change_note) + ', back in your shielded balance', 'gold']] : []);
     if (ch) {
       var pct = Math.min(100, Math.round(100 * ch.level / ch.capacity));
@@ -246,10 +349,10 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     var txs = (state.log || []).filter(function (l) { return l.ok && l.result && l.result.tx && l.result.tx.height; });
     $('ktx').textContent = txs.length;
     var rows = (state.log || []).map(function (l) {
-      if (l.kind === 'pay') return l.ok ? '<tr class="unseen"><td>Payment · ' + esc(l.merchant) + ' · ' + esc(l.protocol.toUpperCase()) + '</td><td>nothing (off-chain)</td></tr>' : '';
+      if (l.kind === 'pay') return l.ok ? '<tr class="unseen"><td>Payment · ' + esc(l.merchant) + ' · ' + esc(l.protocol.toUpperCase()) + '</td><td>nothing, off chain</td></tr>' : '';
       if (!l.ok || !l.result || !l.result.tx || !l.result.tx.height) return '';
-      var name = { 'shield-in': 'Shield in', open: 'Open channel', close: 'Shield out' }[l.kind] || l.kind;
-      return '<tr><td>' + name + '</td><td>' + seen(l.kind, l.result.tx)[0] + '</td></tr>';
+      var name = { 'shield-in': 'Fund (shield in)', open: 'Open channel', close: 'Settle (shield out)' }[l.kind] || l.kind;
+      return '<tr class="tx"><td>' + name + '</td><td>' + seen(l.kind, l.result.tx)[0] + '</td></tr>';
     }).join('');
     $('ledger').innerHTML = rows || '<tr class="unseen"><td>Nothing yet.</td></tr>';
   }
@@ -268,8 +371,8 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
   $('b2').onclick = function () { act('/open', this); };
   $('b4').onclick = function () { act('/close', this); };
   $('shops').innerHTML = shops.map(function (s, i) {
-    return '<div class="shop"><div class="name">' + esc(s.label) + '</div><div class="path">' + esc(s.merchant) + ' · ' + esc((s.method || 'GET') + ' ' + s.path) + '</div>' +
-      '<div class="go"><button data-i="' + i + '" data-p="x402" disabled>Pay with x402</button><button class="ghost" data-i="' + i + '" data-p="mpp" disabled>Pay with MPP</button></div></div>';
+    return '<div class="shop"><div class="name">' + esc(s.label) + '<span>' + s.price.toLocaleString('en-US') + ' zat</span></div><div class="path">' + esc(s.merchant) + ' · ' + esc((s.method || 'GET') + ' ' + s.path) + '</div>' +
+      '<div class="go"><button id="pay-' + i + '-x402" data-i="' + i + '" data-p="x402" disabled>Pay with x402</button><button id="pay-' + i + '-mpp" data-i="' + i + '" data-p="mpp" disabled>Pay with MPP</button></div></div>';
   }).join('');
   $('shops').addEventListener('click', function (ev) {
     var b = ev.target.closest('button'); if (!b) return;
@@ -277,21 +380,36 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     b.disabled = true; paying = true;
     $('o3').innerHTML = '<div class="busy">paying ' + esc(s.merchant) + ' over ' + b.dataset.p.toUpperCase() + '…</div>';
     api('/api/session/' + sid + '/pay', { merchant: s.merchant, path: s.path, method: s.method, body: s.body, protocol: b.dataset.p })
-      .then(function (e) { paying = false; poll(); })
+      .then(function () { paying = false; poll(); })
       .catch(function (e) { paying = false; $('o3').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
   });
   api('/api/info').then(function (i) {
     info = i;
-    $('hdr').textContent = i.network + ' · solver ' + i.solver + ' · house ' + zat(i.house_shielded) + ' shielded · ' + i.sessions + '/' + i.max_sessions + ' sessions';
+    $('netdot').className = 'dot on';
+    $('netname').textContent = String(i.network).replace(/^zcash:/, '') + ' · online';
+    $('hdr').textContent = 'house ' + zat(i.house_shielded) + ' shielded · ' + i.sessions + '/' + i.max_sessions + ' sessions';
     $('grant').textContent = zat(i.grant);
     start();
-  }).catch(function (e) { $('hdr').textContent = 'playground unreachable: ' + e.message; });
+  }).catch(function (e) { $('netdot').className = 'dot off'; $('netname').textContent = 'offline'; $('hdr').textContent = 'playground unreachable: ' + e.message; });
   setInterval(poll, 3000);
   setInterval(function () { var w = $('waited'); if (w) w.textContent = waitText(); }, 1000);
   document.addEventListener('click', function (ev) {
     if (ev.target.id !== 'fresh') return;
     try { localStorage.removeItem('zchan-pg'); } catch (_) {}
     location.href = location.pathname;
+  });
+
+  // Theme: system, light or dark; remembered in this browser where storage works.
+  var root = document.documentElement;
+  function setTheme(t) {
+    if (t === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    document.querySelectorAll('[data-theme-set]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.themeSet === t)); });
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('zchan-theme'); } catch (e) {}
+  if (saved === 'light' || saved === 'dark') setTheme(saved);
+  document.querySelectorAll('[data-theme-set]').forEach(function (b) {
+    b.addEventListener('click', function () { setTheme(b.dataset.themeSet); try { localStorage.setItem('zchan-theme', b.dataset.themeSet); } catch (e) {} });
   });
 })();
 </script>
