@@ -33,6 +33,7 @@ if [ ! -f /etc/zchan/env ]; then
     echo "ZCHAN_NODE_URL=${NODE_URL:-http://127.0.0.1:18232/}"
     echo "ZCHAN_ADMIN_TOKEN=$(cat admin-token 2>/dev/null || openssl rand -hex 12)"
     echo "# EXPLORER=https://explorer.example/tx/"
+    echo "# ZCHAN_SQLITE_SYNC=normal  # faster payments; the last commits can be lost if the machine goes down"
   } > /etc/zchan/env
   chmod 640 /etc/zchan/env
   chgrp zchan /etc/zchan/env

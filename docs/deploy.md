@@ -85,8 +85,10 @@ Wallets and settings on the server stay as they are. Before a full push, check t
 | Status | `systemctl status 'zchan@*'` |
 | Logs | `journalctl -u 'zchan@*' -f` |
 | Restart one service | `systemctl restart zchan@playground` |
-| Settings | `/etc/zchan/env` (node URL, admin token, optional `EXPLORER`) |
+| Settings | `/etc/zchan/env` (node URL, admin token, optional `EXPLORER` and `ZCHAN_SQLITE_SYNC`); `systemctl restart 'zchan@*'` after a change |
 | House balance | `curl -s localhost:8088/api/info` |
+
+**Database sync.** By default every commit is synced to disk before it returns, so a signed state survives a power loss. `ZCHAN_SQLITE_SYNC=normal` syncs only at checkpoints. A crashed or restarted service still loses nothing, but if the machine itself goes down, the last few commits can be lost. On the 1-vCPU droplet (Oct 27, 15 payments each), payments took a median of 91 ms with the default and 17 ms with `normal`. The hosted playground runs with `normal`.
 
 **Topping up the house wallet:**
 

@@ -107,10 +107,19 @@ fn parse<T: for<'de> Deserialize<'de>>(s: String) -> Result<T> {
 }
 
 impl Store {
+    /// Opens the database. By default every commit is synced to disk before it returns,
+    /// so a signed state survives a power loss. `ZCHAN_SQLITE_SYNC=normal` syncs only at
+    /// checkpoints: a crashed process still loses nothing, but the machine going down
+    /// may lose the last commits.
     pub fn open(path: &str) -> Result<Self> {
+        let sync = match std::env::var("ZCHAN_SQLITE_SYNC").unwrap_or_default().to_ascii_lowercase().as_str() {
+            "" | "full" => "FULL",
+            "normal" => "NORMAL",
+            other => return Err(Error::Store(format!("ZCHAN_SQLITE_SYNC={other}: use full or normal"))),
+        };
         let c = Connection::open(path)?;
         c.pragma_update(None, "journal_mode", "WAL")?;
-        c.pragma_update(None, "synchronous", "FULL")?;
+        c.pragma_update(None, "synchronous", sync)?;
         c.execute_batch(SCHEMA)?;
         Ok(Self(Mutex::new(c)))
     }
