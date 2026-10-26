@@ -25,10 +25,10 @@ impl Node {
             .json(&body)
             .send()
             .await
-            .map_err(|e| Error::Rpc(format!("{method}: {e}")))?
+            .map_err(|e| Error::Rpc(format!("{method}: {}", e.without_url())))?
             .json()
             .await
-            .map_err(|e| Error::Rpc(format!("{method}: {e}")))?;
+            .map_err(|e| Error::Rpc(format!("{method}: {}", e.without_url())))?;
         if !v["error"].is_null() {
             return Err(Error::Rpc(format!("{method}: {}", v["error"])));
         }
