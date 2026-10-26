@@ -122,7 +122,7 @@ PORT=8088 ZCHAN_NODE_URL=<Zakura testnet RPC> scripts/playground.sh testnet
 cloudflared tunnel --url http://127.0.0.1:8088
 ```
 
-cloudflared prints a `https://….trycloudflare.com` link. The machine must stay awake and online while judges use it. A quick tunnel's link changes each time cloudflared restarts; for a fixed name, use a named tunnel on a Cloudflare account.
+cloudflared prints a `https://….trycloudflare.com` link. If `~/.cloudflared/config.yml` exists (from another tunnel), its routing rules apply to the quick tunnel too, and every request gets an empty 404. Pass an empty config instead: `cloudflared tunnel --config /path/to/empty.yml --url http://127.0.0.1:8088`. The machine must stay awake and online while judges use it. A quick tunnel's link changes each time cloudflared restarts; for a fixed name, use a named tunnel on a Cloudflare account.
 
 **First run against a busy network:** each wallet reads every block since its starting height once. Testnet adds about 11 Ironwood commitments per block, so a wallet funded days ago takes a while to catch up over a remote RPC. Blocks are fetched 16 at a time. After that, each step reads only new blocks.
 
