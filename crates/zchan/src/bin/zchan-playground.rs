@@ -24,6 +24,10 @@ async fn main() {
     if merchants.is_empty() || a.get("solver").is_none() {
         die("--solver URL and --merchants name=url,... are required");
     }
+    // Build the Ironwood proving key now, so the first shielded send or close does not wait for it.
+    std::thread::spawn(|| {
+        zchan_tx::tx::proving_key();
+    });
     let house = Ctx::new(Config {
         data_dir: base.data_dir.join("house"),
         dev_seed: a.get("house-dev-seed").map(str::to_owned),

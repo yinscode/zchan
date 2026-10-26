@@ -11,18 +11,18 @@ The kit is in `deploy/`:
 
 | File | What it does |
 |---|---|
-| `build-linux.sh` | Builds static x86_64 Linux binaries in Docker, into `deploy/dist/`. |
+| `build-linux.sh` | Cross-compiles x86_64 Linux binaries into `deploy/dist/` (zig, or Docker). |
 | `push.sh` | Uploads binaries, site and service files to the server, then runs `install.sh` there. |
 | `install.sh` | Creates the `zchan` user, installs the services and Caddy, starts everything. |
 | `run.sh` | Each service's flags (same parties, ports and prices as the testnet playground). |
 | `zchan@.service` | One systemd unit per service: `zchan@solver`, `zchan@playground`, … |
-| `Caddyfile` | `/` landing, `/play` and `/api/*` playground. |
+| `Caddyfile` | `/` landing page and `/play` playground page, both as files; `/api/*` to the playground service. |
 
 ## What the server needs
 
 - **Where:** the droplet that runs the testnet node is the best place. The services reach the node on localhost, so no tunnel is needed. A separate droplet works too; point `NODE_URL` at the node.
 - **Memory:** about 1 GB free beyond the node. The services idle at under 50 MB each, but building a proof briefly takes a few hundred MB. On a separate droplet, 2 GB of RAM and 1 vCPU is plenty.
-- **Disk and system:** a few MB of disk, and any x86_64 Linux with systemd. The binaries are static, and Caddy is installed from its official apt repository (Debian or Ubuntu).
+- **Disk and system:** a few MB of disk, and x86_64 Debian 12+ or Ubuntu 23.04+ with systemd. Caddy is installed from its official apt repository.
 - **A name:** either a domain with an A record pointing at the droplet's IP, or the IP itself through sslip.io (`203-0-113-5.sslip.io` resolves to 203.0.113.5). Caddy gets a certificate for either.
 
 Check the droplet first:
@@ -34,7 +34,7 @@ ssh root@<droplet-ip> 'free -h; df -h /; nproc; . /etc/os-release; echo $PRETTY_
 ## First deploy
 
 1. **Build,** either locally or on the server.
-   - **Locally, in Docker:** needs about 10 GB free on the Mac. The first build takes a while under emulation on Apple silicon; later ones reuse the cache.
+   - **Locally:** needs a few GB free on the Mac. It uses `cargo-zigbuild` if installed (`brew install zig && cargo install cargo-zigbuild`), and otherwise a Docker container. Both cross-compile natively, with no emulation. The binaries need glibc 2.36 or newer on the server (Debian 12+, Ubuntu 23.04+).
 
      ```bash
      deploy/build-linux.sh
@@ -64,17 +64,19 @@ ssh root@<droplet-ip> 'free -h; df -h /; nproc; . /etc/os-release; echo $PRETTY_
 
 ## Updating
 
-```bash
-deploy/build-linux.sh && HOST=root@<droplet-ip> DOMAIN=<domain> deploy/push.sh
-```
+| What changed | Command | Restarts |
+|---|---|---|
+| The landing page (`site/zchan-landing.html`, copied into `site/index.html`) or the playground page (`crates/zchan/src/playground.html`) | `SITE_ONLY=1 HOST=root@<droplet-ip> deploy/push.sh` | nothing; live in seconds |
+| Code | `deploy/build-linux.sh && HOST=root@<droplet-ip> DOMAIN=<domain> deploy/push.sh` | every service, for a few seconds |
+| The same, built on the server | `BUILD=server HOST=root@<droplet-ip> DOMAIN=<domain> deploy/push.sh` | every service |
+
+Wallets and settings on the server stay as they are. Before a full push, check that no session is in the middle of a step: a restart cuts the wait short, and the judge has to refresh. Add `SSH_KEY=~/.ssh/<key>` to any of these to pick the SSH key.
+
+`site/index.html` is the landing page with a short head added; after editing `site/zchan-landing.html`, refresh it with:
 
 ```bash
-BUILD=server HOST=root@<droplet-ip> DOMAIN=<domain> deploy/push.sh
+{ head -4 site/index.html; cat site/zchan-landing.html; } > site/index.new && mv site/index.new site/index.html
 ```
-
-The first builds locally; the second builds the last commit on the server.
-
-This replaces the binaries, the landing page and the service files, then restarts the services. Wallets and settings on the server stay as they are. A judge in the middle of a step needs to refresh the page.
 
 ## Operating
 

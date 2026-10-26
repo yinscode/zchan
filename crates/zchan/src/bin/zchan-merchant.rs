@@ -11,6 +11,10 @@ async fn main() {
         die("--solver URL is required");
     }
     let ctx = Ctx::new(cfg).await.unwrap_or_else(|e| die(e));
+    // Build the Ironwood proving key now, so the first shielded send or close does not wait for it.
+    std::thread::spawn(|| {
+        zchan_tx::tx::proving_key();
+    });
     eprintln!("zchan-merchant {} on {} · {} · price {} zat", ctx.cfg.name, listen, ctx.network, ctx.cfg.price);
     tokio::spawn(merchant::run(ctx.clone()));
     let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));

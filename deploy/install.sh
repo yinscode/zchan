@@ -5,6 +5,7 @@
 # /var/lib/zchan is never overwritten.
 set -euo pipefail
 cd "$(dirname "$0")"
+export DEBIAN_FRONTEND=noninteractive
 : "${DOMAIN:?set DOMAIN to the name this server answers to}"
 SERVICES=(upstream solver merchant-a merchant-b merchant-d playground)
 
@@ -40,7 +41,7 @@ rm -f admin-token
 
 # BUILD=server: compile the uploaded source here, at low priority so the node keeps up.
 if [ -f src.tar.gz ]; then
-  apt-get install -y -qq build-essential curl >/dev/null
+  apt-get install -y -qq build-essential curl >/dev/null 2>&1
   [ -x /root/.cargo/bin/rustup ] || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
   rm -rf /opt/zchan/src && install -d /opt/zchan/src && tar -C /opt/zchan/src -xzf src.tar.gz
   echo "building (the first build takes a while)…"
@@ -51,20 +52,21 @@ fi
 install -m 755 bin/* /opt/zchan/bin/
 install -m 755 run.sh /opt/zchan/run.sh
 install -m 644 upstream.py /opt/zchan/upstream.py
-install -m 644 site/index.html /var/www/zchan/index.html
+install -m 644 site/index.html site/play.html /var/www/zchan/
 install -m 644 'zchan@.service' /etc/systemd/system/
 
 # Caddy serves HTTPS and gets its own certificate.
 if ! command -v caddy >/dev/null; then
+  echo "installing Caddy…"
   apt-get update -qq
-  apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gnupg
+  apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gnupg >/dev/null 2>&1
   curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt > /etc/apt/sources.list.d/caddy-stable.list
   apt-get update -qq
-  apt-get install -y -qq caddy
+  apt-get install -y -qq caddy >/dev/null 2>&1
 fi
 sed "s/{\$ZCHAN_DOMAIN}/$DOMAIN/" Caddyfile > /etc/caddy/Caddyfile
-caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
 # Open the web ports if this server runs ufw (SSH stays allowed).
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then

@@ -237,7 +237,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       <span class="lab">Live on Zcash testnet</span>
       <span class="item"><b class="num">71</b><span>blocks for the full run</span></span>
       <span class="item"><b class="num">4</b><span>channels opened and closed</span></span>
-      <span class="item"><b class="num">8–35 ms</b><span>per paid request</span></span>
+      <span class="item"><b class="num">~150 ms</b><span>per paid request, on a $6 server</span></span>
       <span class="item"><b class="num">0 zat</b><span>network fee per payment</span></span>
       <span class="item"><b class="num">65,000</b><span>zat paid out shielded</span></span>
       <span class="item"><b class="num">4,524,504</b><span>refund lock height, enforced by the chain</span></span>
@@ -252,7 +252,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
         <p class="lede">A Zcash transaction costs at least 10,000 zatoshis and waits for a block. A channel spreads that cost over every payment it carries, and payments clear as fast as an HTTP round trip.</p>
       </div>
       <div class="benefits">
-        <div class="benefit"><span class="fact">8–35 ms · 0 network fee per payment</span><h3>Sub-second and gasless</h3><p>Each payment raises the channel's cumulative level by one signature: no transaction, no block, no network fee. Only the open and the close touch the chain, so a 100-zatoshi call is worth charging for. (Times measured on testnet with agent, solver and merchant on one host; add your network's round trips.)</p></div>
+        <div class="benefit"><span class="fact">~150 ms · 0 network fee per payment</span><h3>Sub-second and gasless</h3><p>Each payment raises the channel's cumulative level by one signature: no transaction, no block, no network fee. Only the open and the close touch the chain, so a 100-zatoshi call is worth charging for. (Measured on the public testnet playground: agent, solver and merchant on one $6 server, every state synced to disk before it is sent; add your network's round trips.)</p></div>
         <div class="benefit"><span class="fact">refund signed before funding</span><h3>Funds always come back</h3><p>Before an agent funds a channel, the other side signs a time-locked refund. If anyone disappears, the agent's watcher broadcasts it at the lock height.</p></div>
         <div class="benefit"><span class="fact">x402 v2 · MPP</span><h3>Paid in plain HTTP</h3><p>Merchants answer 402 Payment Required with a signed invoice, offered over both x402 and MPP. The client pays and retries with the merchant's own signed receipt.</p></div>
         <div class="benefit"><span class="fact">1 agent channel → every merchant</span><h3>One channel, every merchant</h3><p>A solver keeps one channel to each merchant and nets the agents' payments through it. Agents never open a channel per seller.</p></div>
