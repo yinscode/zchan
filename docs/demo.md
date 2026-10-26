@@ -93,7 +93,7 @@ This starts the solver and the three merchants. Prices are low (2,000–5,000 za
 - **regtest:** from the miner.
 - **testnet:** 2,000,000 zat sent shielded by the solver.
 
-It then serves the playground on port 8080. Each visitor gets an agent of their own, and the page walks through four steps:
+It then serves the playground on port 8080 (`PORT=` to change it). Each visitor gets an agent of their own, and the page walks through four steps:
 
 | Step | What the judge does | What the page shows |
 |---|---|---|

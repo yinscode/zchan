@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The judge playground: solver, merchants and zchan-playground on $HOST:8080.
+# The judge playground: solver, merchants and zchan-playground on $HOST:$PORT (default 8080).
 #
 #   scripts/playground.sh                     regtest (local; blocks are mined instantly)
 #   ZCHAN_NODE_URL=<Zakura RPC> scripts/playground.sh testnet
