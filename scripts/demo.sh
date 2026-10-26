@@ -158,8 +158,9 @@ for m in "merchant-a $A 200000" "merchant-b $B 100000" "merchant-d $D 100000"; d
   txline "solver → $1" "${ch%%:*}"
 done
 if [ "$PLAYGROUND" = 1 ]; then
+  # The playground checks for blocks every 3 s, not 15: judges are watching the wait.
   "$BIN/zchan-playground" --data "$DATA/playground" "${NODE[@]}" --listen "$HOST:${PORT:-8080}" --solver "$SOLVER" \
-    --merchants "merchant-a=$A,merchant-b=$B,merchant-d=$D" --lock-blocks "$LOCK_AGENT" "${COMMON[@]}" \
+    --merchants "merchant-a=$A,merchant-b=$B,merchant-d=$D" --lock-blocks "$LOCK_AGENT" "${COMMON[@]/#15000/3000}" \
     $([ "$NETWORK" = regtest ] && echo --house-dev-seed house) ${EXPLORER:+--explorer "$EXPLORER"} >"$DATA/playground.log" 2>&1 & PIDS+=($!)
   for _ in $(seq 1 60); do curl -sf "http://$HOST:${PORT:-8080}/api/info" >/dev/null && break; sleep 1; done
   if ! curl -sf "http://$HOST:${PORT:-8080}/api/info" >/dev/null; then echo "playground did not start: see $DATA/playground.log" >&2; exit 1; fi

@@ -97,10 +97,12 @@ It then serves the playground on port 8080 (`PORT=` to change it). Each visitor 
 
 | Step | What the judge does | What the page shows |
 |---|---|---|
-| 1 · Shield in | one click: the house sends 160,000 zat as an Ironwood note | transparent in 0 · out none; the shielded balance |
-| 2 · Open a channel | one click: 100,000 zat channel funded from that note | transparent in 0; only the channel output is transparent; refund height |
-| 3 · Pay merchants | pick x402 or MPP for each of four calls (two proxied, one POST) | each payment's trace in milliseconds: 402 offers, quote, signed state, merchant receipt, retry, 200 with `PAYMENT-RESPONSE` or `Payment-Receipt`; the "payment txs" counter stays 0 |
-| 4 · Shield out | one click, after more than 10,000 zat of payments | transparent out none; the judge's change note, found with the agent's own viewing key |
+| 1 · Shield in | one click: the house sends 160,000 zat as an Ironwood note | the amount received and the balance; "Chain sees: nothing" |
+| 2 · Open a channel | one click: a channel of up to 100,000 zat funded from that note | the channel size and the block the safety refund unlocks; "Chain sees: only the channel size" |
+| 3 · Pay merchants | pick x402 or MPP for each of four calls (two proxied, one POST) | each payment's trace in milliseconds: 402 offers, quote, signed state, merchant receipt, retry, 200 with `PAYMENT-RESPONSE` or `Payment-Receipt`; the "On-chain payments" counter stays 0 |
+| 4 · Shield out | one click, after more than 10,000 zat of payments | the change note, found with the agent's own viewing key; "Chain sees: nothing about who got what" |
+
+Each on-chain step links its transaction in small type underneath; opens and closes each wait for one block (Zcash targets 75 s; testnet blocks recently averaged about 25 s), and the playground checks for it every 3 s.
 
 **Operating notes:**
 - **Limits:** one grant per session and 100 sessions (`--max-sessions`). Sessions survive a restart, and a session can be reopened with `/?session=<id>`.

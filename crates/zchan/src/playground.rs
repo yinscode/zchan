@@ -117,7 +117,13 @@ async fn get_session(pg: &Playground, id: &str) -> ApiResult<Arc<tokio::sync::Mu
             eprintln!("resume funding: {e}");
         }
     });
-    let s = Arc::new(tokio::sync::Mutex::new(Session { agent, granted: true, shielded, busy: None, log: vec![] }));
+    let log: Vec<Value> = agent
+        .ctx
+        .store
+        .read(|c| crate::store::meta_get(c, "playground_log"))?
+        .and_then(|l| serde_json::from_str(&l).ok())
+        .unwrap_or_default();
+    let s = Arc::new(tokio::sync::Mutex::new(Session { agent, granted: true, shielded, busy: None, log }));
     pg.sessions.lock().unwrap().entry(id.to_string()).or_insert(s.clone());
     Ok(s)
 }
@@ -177,6 +183,11 @@ async fn tx_facts(ctx: &Ctx, txid: &str) -> Value {
     json!({"txid": txid, "height": null})
 }
 
+/// Saves a session's on-page log with its agent, so a restart keeps it.
+fn save_log(agent: &Agent, log: &[Value]) {
+    let _ = agent.ctx.store.tx(|c| crate::store::meta_set(c, "playground_log", &serde_json::to_string(log).unwrap()));
+}
+
 /// Runs `job` in the background with the session marked busy, logging its outcome.
 fn spawn_job<F, Fut>(s: Arc<tokio::sync::Mutex<Session>>, label: &'static str, job: F)
 where
@@ -194,6 +205,7 @@ where
             Ok(v) => json!({"kind": label, "at": now(), "ok": true, "result": v}),
             Err(e) => json!({"kind": label, "at": now(), "ok": false, "error": e.to_string()}),
         });
+        save_log(&agent, &g.log);
     });
 }
 
@@ -284,7 +296,9 @@ async fn pay(State(pg): State<Arc<Playground>>, Path(id): Path<String>, Json(req
         }),
         Err(e) => json!({"kind": "pay", "at": now(), "ok": false, "merchant": req.merchant, "path": req.path, "protocol": req.protocol, "error": e.to_string()}),
     };
-    s.lock().await.log.push(entry.clone());
+    let mut g = s.lock().await;
+    g.log.push(entry.clone());
+    save_log(&agent, &g.log);
     Ok(Json(entry))
 }
 

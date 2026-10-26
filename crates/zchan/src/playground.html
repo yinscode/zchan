@@ -72,6 +72,7 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 .kpis div { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--bg); }
 .kpis span { display: block; font: 500 11px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .mono { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+.txl { font: 12px/1.4 var(--mono); color: var(--muted); margin-top: 8px; }
 a { color: inherit; }
 footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
 @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } .ledger { position: static; } .shops { grid-template-columns: minmax(0, 1fr); } }
@@ -88,7 +89,7 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     <div>
       <section class="step" id="s1">
         <h2><span class="n">1</span>Shield in</h2>
-        <p>The house wallet sends your agent <b id="grant">—</b> as an Ironwood note. Nothing about it is transparent. It takes one block.</p>
+        <p>The house wallet sends your agent <b id="grant">—</b> as an Ironwood note. Nothing about it is transparent. It waits for one block.</p>
         <button id="b1">Shield in</button>
         <div id="o1"></div>
       </section>
@@ -116,7 +117,7 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
 
     <aside class="ledger" aria-live="polite">
       <h3>What the chain saw</h3>
-      <p class="sub">Every transaction your session caused, with its transparent inputs and outputs.</p>
+      <p class="sub">Each step, and what anyone watching the blockchain can learn from it.</p>
       <div class="kpis">
         <div><span>Off-chain payments</span><b class="big" id="kpay">0</b></div>
         <div><span>On-chain payments</span><b class="big" id="kptx">0</b></div>
@@ -145,21 +146,29 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     return fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); });
   }
-  function txChips(tx) {
-    if (!tx) return '';
-    if (!tx.height) return '<div class="facts"><span class="chip">waiting for a block…</span></div>';
-    var outs = tx.transparent_outputs || [];
-    var link = info && info.explorer ? '<a href="' + esc(info.explorer + tx.txid) + '" target="_blank" rel="noopener">' + esc(tx.txid.slice(0, 12)) + '…</a>' : esc(tx.txid.slice(0, 12)) + '…';
-    return '<div class="facts"><span class="chip">' + link + '</span><span class="chip">block ' + tx.height + '</span>' +
-      '<span class="chip ' + (tx.transparent_inputs ? '' : 'zero') + '">transparent in ' + tx.transparent_inputs + '</span>' +
-      '<span class="chip ' + (outs.length ? '' : 'zero') + '">transparent out ' + (outs.length ? outs.map(zat).join(', ') : 'none') + '</span>' +
-      ironwoodChip(tx) + '</div>';
+  function txLink(tx) {
+    if (!tx || !tx.txid) return '';
+    var t = 'tx ' + esc(tx.txid.slice(0, 8)) + '…';
+    return '<div class="txl">' + (info && info.explorer ? '<a href="' + esc(info.explorer + tx.txid) + '" target="_blank" rel="noopener">' + t + '</a>' : t) + '</div>';
   }
-  function ironwoodChip(tx) {
-    var b = tx.into_ironwood || 0, outs = tx.transparent_outputs || [];
-    if (!b) return '';
-    if (b < 0 && !tx.transparent_inputs && !outs.length) return '<span class="chip gold">fully shielded · fee ' + zat(-b) + '</span>';
-    return '<span class="chip gold">' + zat(Math.abs(b)) + (b > 0 ? ' entered Ironwood' : ' left Ironwood') + '</span>';
+  function chips(items) {
+    return '<div class="facts">' + items.filter(Boolean).map(function (i) { return '<span class="chip ' + (i[1] || '') + '">' + i[0] + '</span>'; }).join('') + '</div>';
+  }
+  // What someone watching the chain learns from a step's transaction, in plain words.
+  function seen(kind, tx) {
+    var tin = tx.transparent_inputs, outs = tx.transparent_outputs || [];
+    if (kind === 'shield-in') return !tin && !outs.length ? ['nothing', true] : ['the amount', false];
+    if (kind === 'open') return !tin && outs.length === 1 ? ['only the channel size', true] : ['where the funds came from', false];
+    if (kind === 'close') return !outs.length ? ['nothing about who got what', true] : ['who got what', false];
+    return ['', false];
+  }
+  function step(kind, entry, lines) {
+    if (!entry) return '';
+    if (!entry.ok) return '<div class="err">' + esc(entry.error) + '</div>';
+    var tx = entry.result.tx;
+    if (!tx || !tx.height) return chips([['waiting for a block…']]);
+    var v = seen(kind, tx);
+    return chips(lines.concat([['Chain sees: ' + v[0], v[1] ? 'zero' : '']])) + txLink(tx);
   }
   function lastOf(kind) { var l = (state && state.log) || []; for (var i = l.length - 1; i >= 0; i--) if (l[i].kind === kind) return l[i]; return null; }
   function trace(e) {
@@ -186,14 +195,14 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     $('b2').disabled = !!busy || !state.shielded || (ch && ['closed', 'abandoned', 'expired'].indexOf(ch.status) < 0);
     $('b4').disabled = !!busy || !ch || ch.status !== 'open' || !(ch.level > 10000);
     $('s1').classList.toggle('done', !!(s1 && s1.ok)); $('s2').classList.toggle('done', !!(s2 && s2.ok)); $('s4').classList.toggle('done', !!(s4 && s4.ok));
-    var b = function (k) { return busy && busy.indexOf(k) === 0 ? '<div class="busy">' + esc(busy) + '… waiting for a block (testnet blocks can take a few minutes)</div>' : ''; };
-    $('o1').innerHTML = b('shielding') + (s1 ? (s1.ok ? txChips(s1.result.tx) + '<div class="facts"><span class="chip">your shielded balance ' + zat(state.shielded) + '</span></div>' : '<div class="err">' + esc(s1.error) + '</div>') : '');
-    $('o2').innerHTML = b('opening') + (s2 ? (s2.ok ? txChips(s2.result.tx) + '<div class="facts"><span class="chip">capacity ' + zat(s2.result.capacity) + '</span><span class="chip">refund from block ' + s2.result.lock_height + '</span></div>' : '<div class="err">' + esc(s2.error) + '</div>') : '');
-    $('o4').innerHTML = b('closing') + (s4 ? (s4.ok ? txChips(s4.result.tx) + '<div class="facts"><span class="chip zero">your change, found with your viewing key: ' + zat(s4.result.change_note) + '</span></div>' : '<div class="err">' + esc(s4.error) + '</div>') : '');
+    var b = function (k) { return busy && busy.indexOf(k) === 0 ? '<div class="busy">' + esc(busy) + '… waiting for the next block (Zcash aims for one every 75 s; testnet is often quicker)</div>' : ''; };
+    $('o1').innerHTML = b('shielding') + step('shield-in', s1, s1 && s1.ok ? [['You received ' + zat(s1.result.amount) + ', shielded', 'gold'], ['Your balance: ' + zat(state.shielded)]] : []);
+    $('o2').innerHTML = b('opening') + step('open', s2, s2 && s2.ok ? [['Channel of ' + zat(s2.result.capacity), 'gold'], ['Safety refund from block ' + Number(s2.result.lock_height).toLocaleString('en-US')]] : []);
+    $('o4').innerHTML = b('closing') + step('close', s4, s4 && s4.ok ? [['Your change: ' + zat(s4.result.change_note) + ', back in your shielded balance', 'gold']] : []);
     if (ch) {
       var pct = Math.min(100, Math.round(100 * ch.level / ch.capacity));
       $('lvl').style.width = pct + '%';
-      $('lvltext').textContent = 'channel level ' + zat(ch.level) + ' of ' + zat(ch.capacity) + ' · ' + zat(ch.remaining) + ' left · ' + ch.status;
+      $('lvltext').textContent = 'Paid ' + zat(ch.level) + ' of ' + zat(ch.capacity) + ' · ' + zat(ch.remaining) + ' left' + (ch.status === 'open' ? '' : ' · channel ' + ch.status);
     }
     var canPay = ch && ch.status === 'open' && !busy;
     Array.prototype.forEach.call(document.querySelectorAll('.shop button'), function (btn) { btn.disabled = !canPay; });
@@ -203,11 +212,10 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     var txs = (state.log || []).filter(function (l) { return l.ok && l.result && l.result.tx && l.result.tx.height; });
     $('ktx').textContent = txs.length;
     var rows = (state.log || []).map(function (l) {
-      if (l.kind === 'pay') return l.ok ? '<tr class="unseen"><td>payment</td><td>' + esc(l.merchant) + ' · ' + esc(l.protocol.toUpperCase()) + '</td><td class="num">not on chain</td></tr>' : '';
-      if (!l.ok || !l.result || !l.result.tx) return '';
-      var t = l.result.tx, outs = t.transparent_outputs || [];
-      var name = { 'shield-in': 'shield in', open: 'open channel', close: 'shield out' }[l.kind] || l.kind;
-      return '<tr><td>' + name + '</td><td class="mono">' + esc((t.txid || '').slice(0, 10)) + '…</td><td class="num">in ' + t.transparent_inputs + ' · out ' + (outs.length ? outs.join(',') : 'none') + '</td></tr>';
+      if (l.kind === 'pay') return l.ok ? '<tr class="unseen"><td>Payment · ' + esc(l.merchant) + ' · ' + esc(l.protocol.toUpperCase()) + '</td><td>nothing (off-chain)</td></tr>' : '';
+      if (!l.ok || !l.result || !l.result.tx || !l.result.tx.height) return '';
+      var name = { 'shield-in': 'Shield in', open: 'Open channel', close: 'Shield out' }[l.kind] || l.kind;
+      return '<tr><td>' + name + '</td><td>' + seen(l.kind, l.result.tx)[0] + '</td></tr>';
     }).join('');
     $('ledger').innerHTML = rows || '<tr class="unseen"><td>Nothing yet.</td></tr>';
   }
