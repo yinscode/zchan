@@ -216,11 +216,33 @@ impl Ctx {
         Ok(h)
     }
 
+    /// Brings this party's shielded scanner up to the tip and stores it.
+    async fn scanner(&self) -> Result<zchan_tx::notes::Scanner> {
+        let lock = self.lock("scan");
+        let _g = lock.lock().await;
+        let saved = self.store.read(|c| store::meta_get(c, "shielded_scan"))?;
+        let mut sc = match saved.and_then(|h| hex::decode(h).ok()) {
+            Some(b) => zchan_tx::notes::Scanner::from_bytes(&b)?,
+            None => zchan_tx::notes::Scanner::start(&self.node, self.shielded_from().await?).await?,
+        };
+        let tip = self.tip().await?;
+        sc.update(&self.node, &self.wallet.shielded_fvk(), tip).await?;
+        let bytes = hex::encode(sc.to_bytes()?);
+        self.store.tx(|c| store::meta_set(c, "shielded_scan", &bytes))?;
+        Ok(sc)
+    }
+
     /// Unspent, confirmed Ironwood notes of this party's shielded account.
     pub async fn shielded_notes(&self) -> Result<Vec<zchan_tx::notes::OwnedNote>> {
-        let from = self.shielded_from().await?;
-        let tip = self.tip().await?;
-        Ok(zchan_tx::notes::unspent(&self.node, &self.wallet.shielded_fvk(), from, tip).await?)
+        Ok(self.scanner().await?.unspent())
+    }
+
+    /// Spends of `picks` (from `shielded_notes`) and their anchor, from stored witnesses.
+    pub async fn shielded_spends(
+        &self,
+        picks: &[zchan_tx::notes::OwnedNote],
+    ) -> Result<(Vec<zchan_tx::tx::IronwoodSpend>, orchard::Anchor)> {
+        Ok(self.scanner().await?.spends(&self.wallet.shielded_fvk(), picks)?)
     }
 
     /// Moves every confirmed transparent coin into the shielded account. Returns the

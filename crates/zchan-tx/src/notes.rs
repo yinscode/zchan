@@ -153,3 +153,183 @@ pub fn select(mut notes: Vec<OwnedNote>, need: u64) -> Option<Vec<OwnedNote>> {
     }
     (got >= need).then_some(out)
 }
+
+// ---- Persistent scanner -----------------------------------------------------------------
+
+use incrementalmerkletree::frontier::CommitmentTree;
+use orchard::note::{NoteVersion, RandomSeed, Rho};
+use orchard::value::NoteValue;
+use zcash_primitives::merkle_tree::{read_incremental_witness, write_commitment_tree, write_incremental_witness};
+
+type Tree = CommitmentTree<MerkleHashOrchard, 32>;
+type Witness = IncrementalWitness<MerkleHashOrchard, 32>;
+
+struct Tracked {
+    owned: OwnedNote,
+    nf: Nullifier,
+    witness: Witness,
+}
+
+/// A wallet's shielded state, kept between runs: the Ironwood commitment tree frontier at
+/// `scanned_to`, and every unspent note with its nullifier and an up-to-date witness.
+///
+/// `update` reads only blocks where the Ironwood tree grew: the node's tree size at two
+/// heights tells whether anything happened between them, so a bisection over
+/// `z_gettreestate` finds those blocks without reading the others. Every relevant block is
+/// read once per wallet, and spending needs no further scan.
+pub struct Scanner {
+    pub scanned_to: u32,
+    tree: Tree,
+    notes: Vec<Tracked>,
+}
+
+async fn tree_at(node: &Node, h: u32) -> Result<Tree> {
+    tree_state(&node.call("z_gettreestate", json!([h.to_string()])).await?)
+}
+
+fn version_byte(v: NoteVersion) -> u8 {
+    match v {
+        NoteVersion::V2 => 2,
+        _ => 3,
+    }
+}
+
+impl Scanner {
+    /// A scanner whose history starts at `from` (nothing before it is looked at).
+    pub async fn start(node: &Node, from: u32) -> Result<Self> {
+        Ok(Self { scanned_to: from, tree: tree_at(node, from).await?, notes: vec![] })
+    }
+
+    /// Heights in `(self.scanned_to, to]` whose block grew the Ironwood tree.
+    async fn grown(&self, node: &Node, to: u32) -> Result<Vec<u32>> {
+        let mut out = vec![];
+        let mut stack = vec![(self.scanned_to, self.tree.size(), to, tree_at(node, to).await?.size())];
+        while let Some((lo, s_lo, hi, s_hi)) = stack.pop() {
+            if s_lo == s_hi || hi <= lo {
+                continue;
+            }
+            if hi == lo + 1 {
+                out.push(hi);
+                continue;
+            }
+            let mid = lo + (hi - lo) / 2;
+            let s_mid = tree_at(node, mid).await?.size();
+            stack.push((mid, s_mid, hi, s_hi));
+            stack.push((lo, s_lo, mid, s_mid));
+        }
+        out.sort_unstable();
+        Ok(out)
+    }
+
+    /// Reads every block up to `to` that touched the Ironwood tree: drops notes whose
+    /// nullifier appears, advances every witness, and takes in new notes to `fvk`.
+    pub async fn update(&mut self, node: &Node, fvk: &FullViewingKey, to: u32) -> Result<()> {
+        if to <= self.scanned_to {
+            return Ok(());
+        }
+        let ivks: Vec<PreparedIncomingViewingKey> = [Scope::External, Scope::Internal]
+            .iter()
+            .map(|s| PreparedIncomingViewingKey::new(&fvk.to_ivk(*s)))
+            .collect();
+        for h in self.grown(node, to).await? {
+            for (txid, i, a) in block_actions(node, h).await? {
+                self.notes.retain(|t| t.nf != *a.nullifier());
+                let l = leaf(&a.cmx().to_bytes())?;
+                self.tree.append(l).map_err(|_| Error::Build("tree full".into()))?;
+                for t in &mut self.notes {
+                    t.witness.append(l).map_err(|_| Error::Build("witness full".into()))?;
+                }
+                let domain = IronwoodDomain::for_action(&a);
+                for ivk in &ivks {
+                    if let Some((note, _, _)) = try_note_decryption(&domain, ivk, &a) {
+                        let witness = IncrementalWitness::from_tree(self.tree.clone())
+                            .ok_or(Error::Build("witness of an empty tree".into()))?;
+                        let nf = note.nullifier(fvk);
+                        self.notes.push(Tracked { owned: OwnedNote { note, height: h, txid, action: i }, nf, witness });
+                        break;
+                    }
+                }
+            }
+        }
+        if orchard::Anchor::from(self.tree.root()) != node.ironwood_anchor(to).await? {
+            return Err(Error::Build(format!("scanned tree differs from the node's at {to}")));
+        }
+        self.scanned_to = to;
+        Ok(())
+    }
+
+    pub fn unspent(&self) -> Vec<OwnedNote> {
+        self.notes.iter().map(|t| t.owned.clone()).collect()
+    }
+
+    /// Spends of `picks` (notes of this scanner, to `fvk`) against the scanned tree.
+    pub fn spends(&self, fvk: &FullViewingKey, picks: &[OwnedNote]) -> Result<(Vec<IronwoodSpend>, orchard::Anchor)> {
+        let mut out = vec![];
+        for p in picks {
+            let t = self
+                .notes
+                .iter()
+                .find(|t| (t.owned.txid, t.owned.action) == (p.txid, p.action))
+                .ok_or(Error::Build("note not tracked".into()))?;
+            let path = t.witness.path().ok_or(Error::Build("witness path".into()))?;
+            out.push(IronwoodSpend { fvk: fvk.clone(), note: t.owned.note, path: MerklePath::from(path) });
+        }
+        Ok((out, orchard::Anchor::from(self.tree.root())))
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        let io = |e: std::io::Error| Error::Build(format!("scanner: {e}"));
+        let mut b = self.scanned_to.to_le_bytes().to_vec();
+        write_commitment_tree(&self.tree, &mut b).map_err(io)?;
+        b.extend((self.notes.len() as u32).to_le_bytes());
+        for t in &self.notes {
+            let n = &t.owned.note;
+            b.extend(n.recipient().to_raw_address_bytes());
+            b.extend(n.value().inner().to_le_bytes());
+            b.extend(n.rho().to_bytes());
+            b.extend(n.rseed().as_bytes());
+            b.push(version_byte(n.version()));
+            b.extend(t.owned.height.to_le_bytes());
+            b.extend(t.owned.txid);
+            b.extend((t.owned.action as u32).to_le_bytes());
+            b.extend(t.nf.to_bytes());
+            write_incremental_witness(&t.witness, &mut b).map_err(io)?;
+        }
+        Ok(b)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let bad = |m: &str| Error::Build(format!("scanner bytes: {m}"));
+        let mut r = std::io::Cursor::new(bytes);
+        let scanned_to = u32::from_le_bytes(take(&mut r)?);
+        let tree = read_commitment_tree::<MerkleHashOrchard, _, 32>(&mut r).map_err(|e| bad(&e.to_string()))?;
+        let count = u32::from_le_bytes(take(&mut r)?);
+        let mut notes = vec![];
+        for _ in 0..count {
+            let recipient: [u8; 43] = take(&mut r)?;
+            let value = u64::from_le_bytes(take(&mut r)?);
+            let rho: [u8; 32] = take(&mut r)?;
+            let rseed: [u8; 32] = take(&mut r)?;
+            let version = if take::<1>(&mut r)?[0] == 2 { NoteVersion::V2 } else { NoteVersion::V3 };
+            let height = u32::from_le_bytes(take(&mut r)?);
+            let txid: [u8; 32] = take(&mut r)?;
+            let action = u32::from_le_bytes(take(&mut r)?) as usize;
+            let nf: [u8; 32] = take(&mut r)?;
+            let witness = read_incremental_witness::<MerkleHashOrchard, _, 32>(&mut r).map_err(|e| bad(&e.to_string()))?;
+            let recipient = Option::from(orchard::Address::from_raw_address_bytes(&recipient)).ok_or_else(|| bad("recipient"))?;
+            let rho = Option::<Rho>::from(Rho::from_bytes(&rho)).ok_or_else(|| bad("rho"))?;
+            let rseed = Option::<RandomSeed>::from(RandomSeed::from_bytes(rseed, &rho)).ok_or_else(|| bad("rseed"))?;
+            let note = Option::<Note>::from(Note::from_parts(recipient, NoteValue::from_raw(value), rho, rseed, version))
+                .ok_or_else(|| bad("note"))?;
+            let nf = Option::<Nullifier>::from(Nullifier::from_bytes(&nf)).ok_or_else(|| bad("nullifier"))?;
+            notes.push(Tracked { owned: OwnedNote { note, height, txid, action }, nf, witness });
+        }
+        Ok(Self { scanned_to, tree, notes })
+    }
+}
+
+fn take<const N: usize>(r: &mut std::io::Cursor<&[u8]>) -> Result<[u8; N]> {
+    let mut v = [0u8; N];
+    std::io::Read::read_exact(r, &mut v).map_err(|_| Error::Build("scanner bytes: short".into()))?;
+    Ok(v)
+}

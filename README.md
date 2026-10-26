@@ -24,29 +24,17 @@ Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2S
 | Demo video | `scripts/record.sh` records it from a live run (testnet and regtest cuts made) |
 | Mainnet | refused by the code |
 
-## Run the demo
+## Demo
 
-Needs Rust 1.97.1 (pinned in `rust-toolchain.toml`), Docker, and `python3` for the script's JSON parsing.
-
-```bash
-KEEP=1 CLOSE=1 scripts/demo.sh
-```
-
-The script:
-1. starts a fresh Zakura regtest node, the solver, and merchants A and B;
-2. funds everyone, and opens the solver's channels to A and B and the agents' channels to the solver;
-3. has agent-1 buy from A and B through its one channel, and agent-2 buy from A;
-4. prints the reconciled levels.
-
-With `KEEP=1` the services keep running and it prints the dashboard, POS and approval-page links. With `CLOSE=1` it settles every channel: A cooperatively to Ironwood, B and the agent channels transparently. For testnet see [docs/testnet.md](docs/testnet.md).
-
-| Page | URL |
+| | |
 |---|---|
-| Solver dashboard (channels, payments, reconciliation, events) | `http://127.0.0.1:7100/status` |
-| Merchant A point of sale (QR checkout) | `http://127.0.0.1:7201/checkout?amount=3000&item=coffee` |
-| Agent approval page (open it from the merchant's invoice page on a phone) | printed by the script |
+| Local, scripted (~1 min) | `scripts/demo-regtest.sh` |
+| Local, live walkthrough | `KEEP=1 scripts/demo-regtest.sh` |
+| Testnet | `ZCHAN_NODE_URL=<Zakura RPC> scripts/demo-testnet.sh` |
+| **Judge playground**: anyone tries shield in → channel → x402/MPP payments → shield out with an agent of their own | `scripts/playground.sh [testnet]`, then open `http://<host>:8080/` |
+| Two-minute video | `scripts/record.sh` |
 
-For a phone on the same network, run with `HOST=<your LAN IP>`.
+Every demo funds channels from Ironwood notes, pays three merchants (one in proxy mode) over x402 and MPP, and closes cooperatively with both sides paid to Ironwood. Instructions, expected output and hosting notes: [docs/demo.md](docs/demo.md).
 
 ## Proxy mode
 
@@ -101,6 +89,7 @@ The two regtest suites each need a fresh chain. The e2e test runs the real `zcha
 | `zchan-solver` | payee of agent channels, payer of merchant channels; `/quote`, `/pay`, `/status`, `/admin/merchants` |
 | `zchan-merchant` | payee of the solver's channel; x402 routes `/paid/{resource}`, `/checkout`, `/invoices/{id}` |
 | `zchan-agent` | `deposit [--fresh]`, `shield`, `balance`, `send`, `open [--shielded]`, `close`, `get URL [--mpp]`, `pay-ref`, `resume`, `status`, `watch`, `serve` (approval page) |
+| `zchan-playground` | the judge playground page (`docs/demo.md` §3) |
 | `zchan-dev` | regtest: `fund ADDRESS ZAT`, `mine N`, `tip` |
 
 All take `--data DIR --node URL`, plus `--dev-seed LABEL` on regtest. Without a dev seed, a random seed is written to `DIR/seed`.

@@ -67,7 +67,7 @@ pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32, s
         let have: u64 = notes.iter().map(|n| n.value()).sum();
         let pick = zchan_tx::notes::select(notes, need)
             .ok_or_else(|| Error::Funding(format!("shielded balance {have} cannot fund {capacity}")))?;
-        let (spends, anchor) = zchan_tx::notes::spends(&ctx.node, &ctx.wallet.shielded_fvk(), &pick, tip).await?;
+        let (spends, anchor) = ctx.shielded_spends(&pick).await?;
         Funding::Shielded { spends, anchor, sk: ctx.wallet.ironwood_sk(0), change: ctx.wallet.shielded_change() }
     } else {
         let mut coins = ctx.coins().await?;
@@ -214,7 +214,7 @@ pub async fn send_shielded(ctx: &Ctx, to: orchard::Address, amount: u64) -> Resu
         .ok_or_else(|| Error::Funding(format!("shielded balance cannot send {amount}")))?;
     let have: u64 = pick.iter().map(|n| n.value()).sum();
     let tip = ctx.tip().await?;
-    let (spends, anchor) = zchan_tx::notes::spends(&ctx.node, &ctx.wallet.shielded_fvk(), &pick, tip).await?;
+    let (spends, anchor) = ctx.shielded_spends(&pick).await?;
     let change = ctx.wallet.shielded_change();
     let mut spec = Spec {
         target_height: tip + 1,
