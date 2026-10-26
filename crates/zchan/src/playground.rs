@@ -110,6 +110,13 @@ async fn get_session(pg: &Playground, id: &str) -> ApiResult<Arc<tokio::sync::Mu
     let ctx = Ctx::new(Config { data_dir: dir, dev_seed: None, name: format!("judge-{}", &id[..6]), ..pg.base.clone() }).await?;
     let shielded = ctx.shielded_notes().await.map(|n| n.iter().map(|n| n.value()).sum()).unwrap_or(0);
     let agent = Arc::new(Agent::new(ctx, &pg.settings.solver));
+    // A step cut off by the restart: settle a funding that was waiting for its block.
+    let resume = agent.clone();
+    tokio::spawn(async move {
+        if let Err(e) = payer::resume_funding(&resume.ctx).await {
+            eprintln!("resume funding: {e}");
+        }
+    });
     let s = Arc::new(tokio::sync::Mutex::new(Session { agent, granted: true, shielded, busy: None, log: vec![] }));
     pg.sessions.lock().unwrap().entry(id.to_string()).or_insert(s.clone());
     Ok(s)

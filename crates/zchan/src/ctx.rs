@@ -299,11 +299,15 @@ impl Ctx {
         Ok(txid)
     }
 
+    /// Waits until `f` is mined; fails once the chain passes its expiry height without it.
     pub async fn wait_mined(&self, f: &Final) -> Result<u32> {
         let txid = txid_hex(&f.txid);
         loop {
             if let Ok(Some(h)) = self.node.mined_height(&txid).await {
                 return Ok(h);
+            }
+            if f.expiry_height > 0 && self.tip().await? >= f.expiry_height {
+                return Err(Error::Funding(format!("{txid} expired at block {} without being mined", f.expiry_height)));
             }
             tokio::time::sleep(self.cfg.poll).await;
         }

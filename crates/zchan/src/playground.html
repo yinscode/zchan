@@ -183,10 +183,10 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     var busy = state.busy, ch = state.channel;
     var s1 = lastOf('shield-in'), s2 = lastOf('open'), s4 = lastOf('close');
     $('b1').disabled = !!busy || state.granted;
-    $('b2').disabled = !!busy || !state.shielded || (ch && ch.status !== 'closed');
+    $('b2').disabled = !!busy || !state.shielded || (ch && ['closed', 'abandoned', 'expired'].indexOf(ch.status) < 0);
     $('b4').disabled = !!busy || !ch || ch.status !== 'open' || !(ch.level > 10000);
     $('s1').classList.toggle('done', !!(s1 && s1.ok)); $('s2').classList.toggle('done', !!(s2 && s2.ok)); $('s4').classList.toggle('done', !!(s4 && s4.ok));
-    var b = function (k) { return busy && busy.indexOf(k) === 0 ? '<div class="busy">' + esc(busy) + '… waiting for a block</div>' : ''; };
+    var b = function (k) { return busy && busy.indexOf(k) === 0 ? '<div class="busy">' + esc(busy) + '… waiting for a block (testnet blocks can take a few minutes)</div>' : ''; };
     $('o1').innerHTML = b('shielding') + (s1 ? (s1.ok ? txChips(s1.result.tx) + '<div class="facts"><span class="chip">your shielded balance ' + zat(state.shielded) + '</span></div>' : '<div class="err">' + esc(s1.error) + '</div>') : '');
     $('o2').innerHTML = b('opening') + (s2 ? (s2.ok ? txChips(s2.result.tx) + '<div class="facts"><span class="chip">capacity ' + zat(s2.result.capacity) + '</span><span class="chip">refund from block ' + s2.result.lock_height + '</span></div>' : '<div class="err">' + esc(s2.error) + '</div>') : '');
     $('o4').innerHTML = b('closing') + (s4 ? (s4.ok ? txChips(s4.result.tx) + '<div class="facts"><span class="chip zero">your change, found with your viewing key: ' + zat(s4.result.change_note) + '</span></div>' : '<div class="err">' + esc(s4.error) + '</div>') : '');

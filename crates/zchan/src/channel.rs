@@ -41,6 +41,10 @@ pub struct ShieldedChange {
 /// above any relay dust rule. It keeps every state the same two-output shape.
 pub const MIN_CHANGE: u64 = 5_000;
 
+/// How long a funding transaction may wait for a block before it expires. Testnet miners
+/// can leave a transaction out of many blocks in a row.
+pub const FUNDING_EXPIRY: u32 = 120;
+
 /// The shortest refund lock a channel may have, in blocks after `target_height`.
 pub const MIN_LOCK: u32 = 6;
 
@@ -406,7 +410,7 @@ impl Payer {
         let address = script::p2sh(&script::multisig_2of2(&payer, &payee)?);
         let mut spec = Spec {
             target_height,
-            expiry_height: target_height + 20,
+            expiry_height: target_height + FUNDING_EXPIRY,
             lock_height: None,
             inputs: vec![],
             outputs: vec![Pay::Transparent(address, capacity)],

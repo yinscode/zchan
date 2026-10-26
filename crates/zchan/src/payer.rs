@@ -141,7 +141,32 @@ pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32, s
         }))
     })?;
     ctx.broadcast(&funding).await?;
-    let h = ctx.wait_mined(&funding).await?;
+    let h = match ctx.wait_mined(&funding).await {
+        Ok(h) => h,
+        Err(e) => {
+            abandon(ctx, &id, &e.to_string())?;
+            return Err(e);
+        }
+    };
+    finish_open(ctx, &id, h).await
+}
+
+/// Marks a channel whose funding expired unmined: nothing was spent, so the coins or
+/// notes are free again.
+fn abandon(ctx: &Ctx, id: &str, why: &str) -> Result<()> {
+    ctx.store.tx(|c| {
+        store::channel_update(c, id, |r| r.status = "abandoned".into())?;
+        store::event(c, "channel_abandoned", json!({"channel": id, "reason": why}))
+    })
+}
+
+/// After the funding is mined: has the payee check it, then marks the channel open.
+async fn finish_open(ctx: &Ctx, id: &str, h: u32) -> Result<ChannelRow> {
+    let row = ctx
+        .store
+        .read(|c| store::channel_get(c, id))?
+        .ok_or_else(|| Error::State(format!("no channel {id}")))?;
+    let payee_url = row.peer_url.clone();
     let url = format!("{payee_url}/channels/{id}/funded");
     let mut tries = 0;
     loop {
@@ -163,6 +188,28 @@ pub async fn open(ctx: &Ctx, payee_url: &str, capacity: u64, lock_blocks: u32, s
         store::event(c, "channel_open", json!({"channel": id, "role": "payer", "height": h}))?;
         Ok(r)
     })
+}
+
+/// Settles channels left mid-funding (the process stopped while waiting for a block):
+/// opens those whose funding was mined, abandons those whose funding expired.
+pub async fn resume_funding(ctx: &Ctx) -> Result<()> {
+    let tip = ctx.tip().await?;
+    for row in ctx.store.read(|c| store::channels(c, "payer"))? {
+        if row.status != "funding" {
+            continue;
+        }
+        let txid = row.terms.funding_txid.clone();
+        match ctx.node.mined_height(&txid).await {
+            Ok(Some(h)) => {
+                finish_open(ctx, &row.id, h).await?;
+            }
+            _ if tip >= row.terms.target_height + crate::channel::FUNDING_EXPIRY => {
+                abandon(ctx, &row.id, "funding expired without being mined")?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// Sends `amount` from this party's deposit coins to `to`, change back to the deposit
@@ -262,8 +309,9 @@ pub fn next_state(ctx: &Ctx, row: &ChannelRow, increment: u64) -> Result<(u64, S
 
 /// One pass of the refund watcher over every unsettled payer channel.
 pub async fn watch(ctx: &Ctx) -> Result<()> {
+    resume_funding(ctx).await?;
     for row in ctx.store.read(|c| store::channels(c, "payer"))? {
-        if row.status == "closed" {
+        if row.status == "closed" || row.status == "abandoned" {
             continue;
         }
         let Some(mut kit) = row.kit.clone() else { continue };
