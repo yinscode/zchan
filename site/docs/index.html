@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Zchan Docs</title>
+<meta name="description" content="Zchan documentation: quickstart, protocol, x402 and MPP bindings, security and self-hosting.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23000'/%3E%3Cpath d='M5 6h14L5 18h14' fill='none' stroke='%23EDEDED' stroke-width='1.6' stroke-linejoin='round'/%3E%3Ccircle cx='5' cy='6' r='2.2' fill='%23F4BC45'/%3E%3Ccircle cx='19' cy='18' r='2.2' fill='%23F4BC45'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/base.css">
+<style>
+/* Layout: a sticky sidebar of documents beside one reading column. */
+.docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; padding-top: 40px; }
+.side { position: sticky; top: calc(84px + env(safe-area-inset-top, 0px)); align-self: start; display: grid; gap: 22px; }
+.side .group { display: grid; gap: 4px; }
+.side a { color: var(--fg2); font-size: 14px; padding: 4px 0; }
+.side a:hover { color: var(--fg); text-decoration: none; }
+.side a[aria-current="page"] { color: var(--fg); font-weight: 520; }
+.side a[aria-current="page"]::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); margin: 0 8px 2px -14px; }
+.pick { display: none; }
+.pick select { width: 100%; height: 40px; border-radius: 8px; border: 1px solid var(--line-hi); background: var(--raise); color: var(--fg); font: 15px var(--sans); padding: 0 10px; }
+article { max-width: 780px; min-width: 0; }
+article h1 { font-size: clamp(32px, 4.5vw, 44px); line-height: 1.05; letter-spacing: -0.045em; font-weight: 480; margin: 0 0 20px; text-wrap: balance; }
+article h2 { font-size: 24px; letter-spacing: -0.03em; font-weight: 500; margin: 44px 0 12px; padding-top: 24px; border-top: 1px solid var(--line); }
+article h3 { font-size: 18px; font-weight: 520; margin: 28px 0 8px; }
+article p, article li { color: var(--fg2); }
+article p { margin: 12px 0; }
+article strong { color: var(--fg); font-weight: 560; }
+article ul, article ol { padding-left: 22px; }
+article li { margin: 6px 0; }
+article code { font: 0.88em var(--mono); background: var(--card); border-radius: 4px; padding: 1px 5px; color: var(--fg); }
+article pre { position: relative; background: var(--pine); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; overflow-x: auto; margin: 16px 0; }
+article pre code { background: none; padding: 0; font-size: 13.5px; line-height: 1.65; }
+article pre .copy { position: absolute; top: 8px; right: 8px; height: 26px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--raise); color: var(--fg2); font: 500 11px/1 var(--mono); cursor: pointer; }
+article pre .copy.done { color: var(--mint); border-color: var(--mint); }
+.table { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 10px; }
+article table { width: 100%; border-collapse: collapse; font-size: 14px; }
+article th, article td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+article th { font: 500 12px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--sage); background: var(--pine); }
+article tr:last-child td { border-bottom: 0; }
+article td { color: var(--fg2); }
+article blockquote { margin: 16px 0; padding: 4px 16px; border-left: 2px solid var(--line-hi); }
+article .src { color: var(--fg2); }
+.nextprev { display: flex; justify-content: space-between; gap: 12px; margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; }
+.err { color: var(--coral); }
+@media (max-width: 860px) {
+  .docs { grid-template-columns: minmax(0, 1fr); gap: 20px; padding-top: 20px; }
+  .side { display: none; }
+  .pick { display: block; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="/"><b>Zchan <span>Docs</span></b><span class="glyph" aria-hidden="true"></span></a>
+    <nav class="links" aria-label="Site">
+      <a href="/docs/#quickstart" aria-current="page">Docs</a>
+      <a href="/docs/#use-cases">Use cases</a>
+      <a href="/docs/#security">Security</a>
+      <a href="/status/">Status</a>
+    </nav>
+    <div class="right"><a class="btn primary" href="/play">Open Playground</a></div>
+  </div>
+</header>
+
+<div class="wrap docs">
+  <aside class="side" id="side" aria-label="Documents"></aside>
+  <div>
+    <label class="pick"><span class="label">Document</span><select id="pick" aria-label="Document"></select></label>
+    <article id="doc"><p class="label">Loading…</p></article>
+  </div>
+</div>
+
+<footer class="base">
+  <div class="wrap">
+    <span>Zchan · payment channels on Zcash · testnet only; mainnet is disabled</span>
+    <div class="theme" role="group" aria-label="Theme">
+      <button type="button" data-theme-set="dark" aria-pressed="true">Dark</button>
+      <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script>
+(function () {
+  var DOCS = [
+    ['Start', 'quickstart', 'Quickstart'], ['Start', 'use-cases', 'Use cases'],
+    ['Protocol', 'design', 'Protocol'], ['Protocol', 'x402-zchannel', 'x402 binding'], ['Protocol', 'mpp-zchannel', 'MPP binding'],
+    ['Security', 'security', 'Security'], ['Security', 'privacy', 'Privacy'],
+    ['Operate', 'demo', 'Run the demo'], ['Operate', 'deploy', 'Self-hosting'], ['Operate', 'testnet', 'Testnet runs']
+  ];
+  var ids = DOCS.map(function (d) { return d[1]; });
+  var $ = function (id) { return document.getElementById(id); };
+
+  // Sidebar and the phone picker.
+  var groups = {}, side = '';
+  DOCS.forEach(function (d) { (groups[d[0]] = groups[d[0]] || []).push(d); });
+  Object.keys(groups).forEach(function (g) {
+    side += '<div class="group"><span class="label">' + g + '</span>' + groups[g].map(function (d) { return '<a href="#' + d[1] + '" data-id="' + d[1] + '">' + d[2] + '</a>'; }).join('') + '</div>';
+  });
+  $('side').innerHTML = side;
+  $('pick').innerHTML = DOCS.map(function (d) { return '<option value="' + d[1] + '">' + d[0] + ' · ' + d[2] + '</option>'; }).join('');
+  $('pick').addEventListener('change', function () { location.hash = this.value; });
+
+  function show(id) {
+    if (ids.indexOf(id) < 0) id = 'quickstart';
+    document.querySelectorAll('.side a').forEach(function (a) { if (a.dataset.id === id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    $('pick').value = id;
+    var i = ids.indexOf(id);
+    fetch(id + '.md').then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); }).then(function (md) {
+      var doc = $('doc');
+      doc.innerHTML = marked.parse(md);
+      // Wide tables scroll inside their own box.
+      doc.querySelectorAll('table').forEach(function (t) { var w = document.createElement('div'); w.className = 'table'; t.parentNode.insertBefore(w, t); w.appendChild(t); });
+      // Links between documents stay in the viewer; links into the source tree become plain text.
+      doc.querySelectorAll('a[href]').forEach(function (a) {
+        var h = a.getAttribute('href');
+        if (/^(https?:|mailto:|#)/.test(h)) return;
+        var m = /([\w-]+)\.md$/.exec(h);
+        if (m && ids.indexOf(m[1]) >= 0) { a.setAttribute('href', '#' + m[1]); return; }
+        var s = document.createElement('span'); s.className = 'src'; s.textContent = a.textContent; a.replaceWith(s);
+      });
+      // Copy buttons on code blocks.
+      doc.querySelectorAll('pre').forEach(function (pre) {
+        var b = document.createElement('button'); b.className = 'copy'; b.type = 'button'; b.textContent = 'Copy';
+        b.addEventListener('click', function () {
+          var text = pre.querySelector('code').textContent;
+          var done = function () { b.textContent = 'Copied'; b.classList.add('done'); setTimeout(function () { b.textContent = 'Copy'; b.classList.remove('done'); }, 1400); };
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () {});
+        });
+        pre.appendChild(b);
+      });
+      var prev = DOCS[i - 1], next = DOCS[i + 1];
+      doc.insertAdjacentHTML('beforeend', '<nav class="nextprev">' + (prev ? '<a href="#' + prev[1] + '">← ' + prev[2] + '</a>' : '<span></span>') + (next ? '<a href="#' + next[1] + '">' + next[2] + ' →</a>' : '') + '</nav>');
+      var h1 = doc.querySelector('h1');
+      document.title = (h1 ? h1.textContent + ' · ' : '') + 'Zchan Docs';
+      window.scrollTo(0, 0);
+    }).catch(function (e) { $('doc').innerHTML = '<p class="err">This document could not be loaded (' + e.message + '). Try another from the list.</p>'; });
+  }
+  window.addEventListener('hashchange', function () { show(location.hash.slice(1)); });
+  show(location.hash.slice(1));
+
+  // Theme: dark by default, light on request.
+  var root = document.documentElement;
+  function setTheme(t) { root.setAttribute('data-theme', t); document.querySelectorAll('[data-theme-set]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.themeSet === t)); }); }
+  var saved = null; try { saved = localStorage.getItem('zchan-theme'); } catch (e) {}
+  setTheme(saved === 'light' ? 'light' : 'dark');
+  document.querySelectorAll('[data-theme-set]').forEach(function (b) { b.addEventListener('click', function () { setTheme(b.dataset.themeSet); try { localStorage.setItem('zchan-theme', b.dataset.themeSet); } catch (e) {} }); });
+})();
+</script>
+</body>
+</html>

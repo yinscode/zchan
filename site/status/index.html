@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Zchan Status</title>
+<meta name="description" content="Live status of the Zchan testnet services, and what is live, next and required before mainnet.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23000'/%3E%3Cpath d='M5 6h14L5 18h14' fill='none' stroke='%23EDEDED' stroke-width='1.6' stroke-linejoin='round'/%3E%3Ccircle cx='5' cy='6' r='2.2' fill='%23F4BC45'/%3E%3Ccircle cx='19' cy='18' r='2.2' fill='%23F4BC45'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/base.css">
+<style>
+/* Layout: live checks on top, the maturity rail (live, next, before mainnet) below. */
+main { padding-top: 48px; display: grid; gap: 40px; }
+h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1.02; letter-spacing: -0.05em; font-weight: 480; margin: 0; }
+.lede { color: var(--fg2); font-size: 18px; max-width: 64ch; margin: 12px 0 0; }
+.checks { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row .v { font: 14px/1.3 var(--mono); color: var(--fg2); font-variant-numeric: tabular-nums; }
+.pill { font: 500 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--line-hi); border-radius: 6px; padding: 6px 8px; white-space: nowrap; }
+.pill.ok { color: var(--mint); border-color: var(--mint); }
+.pill.bad { color: var(--coral); border-color: var(--coral); }
+.pill.wait { color: var(--fg3); }
+.checks .note { padding: 12px 20px; font-size: 13px; color: var(--fg3); background: var(--pine); }
+.stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--pine); }
+.stage { padding: 24px; display: grid; gap: 12px; align-content: start; position: relative; }
+.stage + .stage { border-left: 1px solid var(--line); }
+.stage .h { display: flex; align-items: center; gap: 10px; }
+.stage .h i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--fg3); }
+.stage.live .h i { background: var(--mint); border-color: var(--mint); }
+.stage.next .h i { background: var(--gold); border-color: var(--gold); }
+.stage ul { margin: 0; padding: 0 0 0 18px; color: var(--fg2); font-size: 15px; display: grid; gap: 6px; }
+.links2 { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
+@media (max-width: 760px) {
+  .stages { grid-template-columns: minmax(0, 1fr); }
+  .stage + .stage { border-left: 0; border-top: 1px solid var(--line); }
+  .row { grid-template-columns: minmax(0, 1fr) auto; }
+  .row .v { grid-column: 1 / -1; grid-row: 2; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="/"><b>Zchan <span>Status</span></b><span class="glyph" aria-hidden="true"></span></a>
+    <nav class="links" aria-label="Site">
+      <a href="/docs/#quickstart">Docs</a>
+      <a href="/docs/#use-cases">Use cases</a>
+      <a href="/docs/#security">Security</a>
+      <a href="/status/" aria-current="page">Status</a>
+    </nav>
+    <div class="right"><a class="btn primary" href="/play">Open Playground</a></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div>
+    <span class="label">Zcash testnet</span>
+    <h1>Zchan Network Status</h1>
+    <p class="lede">The hosted playground, its solver and three merchants run on Zcash testnet. Mainnet is refused by the code until an external review.</p>
+  </div>
+
+  <section class="checks" aria-live="polite">
+    <div class="row"><span>Playground and solver</span><span class="v" id="v-api">checking…</span><span class="pill wait" id="p-api">checking</span></div>
+    <div class="row"><span>Network</span><span class="v" id="v-net">–</span><span class="pill wait" id="p-net">–</span></div>
+    <div class="row"><span>House wallet (grants for new sessions)</span><span class="v" id="v-house">–</span><span class="pill wait" id="p-house">–</span></div>
+    <div class="row"><span>Playground sessions</span><span class="v" id="v-sess">–</span><span class="pill wait" id="p-sess">–</span></div>
+    <div class="row"><span>Payment protocol time</span><span class="v">17 ms median, co-located; add network round trips</span><span class="pill ok">measured</span></div>
+    <p class="note" id="checked">Checked from your browser every 15 seconds. The payment time was measured on Oct 27, 2026.</p>
+  </section>
+
+  <section>
+    <span class="label">Maturity</span>
+    <div class="stages" style="margin-top:14px">
+      <div class="stage live"><div class="h"><i></i><span class="label">Live on testnet</span></div><ul><li>Channels with refunds signed before funding</li><li>Solver, merchants and agents with crash recovery</li><li>x402 v2 and MPP payments; QR checkout</li><li>Proxy mode for existing APIs</li><li>Shielded funding and shielded cooperative closes</li></ul></div>
+      <div class="stage next"><div class="h"><i></i><span class="label">Next</span></div><ul><li>TypeScript and Python clients</li><li>An MCP payment tool for assistants</li><li>Prices set in USD, converted at invoice time</li><li>Automatic channel top-ups and rotation</li><li>Hash-locked states, so the two legs are atomic</li></ul></div>
+      <div class="stage"><div class="h"><i></i><span class="label">Before mainnet</span></div><ul><li>External review of the channel code</li><li>Review of key handling; hardware keys for solvers</li><li>Deeper confirmation requirements</li><li>Legal review of operating a solver</li></ul></div>
+    </div>
+  </section>
+
+  <div class="links2"><a href="/docs/#testnet">Testnet runs and transaction ids →</a><a href="/docs/#security">Security and trust model →</a></div>
+</main>
+
+<footer class="base">
+  <div class="wrap">
+    <span>Zchan · payment channels on Zcash</span>
+    <div class="theme" role="group" aria-label="Theme">
+      <button type="button" data-theme-set="dark" aria-pressed="true">Dark</button>
+      <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function pill(id, cls, text) { var p = $(id); p.className = 'pill ' + cls; p.textContent = text; }
+  function zat(n) { return (n || 0).toLocaleString('en-US') + ' zat'; }
+  function check() {
+    fetch('/api/info', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (i) {
+      $('v-api').textContent = 'answering'; pill('p-api', 'ok', 'online');
+      $('v-net').textContent = i.network; pill('p-net', 'ok', 'testnet');
+      var grants = Math.floor(i.house_shielded / (i.grant + 10000));
+      $('v-house').textContent = zat(i.house_shielded) + ' · about ' + grants + ' grants';
+      pill('p-house', grants > 5 ? 'ok' : 'bad', grants > 5 ? 'funded' : 'low');
+      $('v-sess').textContent = i.sessions + ' of ' + i.max_sessions + ' in use';
+      pill('p-sess', i.sessions < i.max_sessions ? 'ok' : 'bad', i.sessions < i.max_sessions ? 'open' : 'full');
+      $('checked').textContent = 'Checked from your browser at ' + new Date().toLocaleTimeString() + ', every 15 seconds. The payment time was measured on Oct 27, 2026.';
+    }).catch(function (e) {
+      $('v-api').textContent = 'not answering (' + e.message + ')'; pill('p-api', 'bad', 'offline');
+    });
+  }
+  check(); setInterval(check, 15000);
+
+  var root = document.documentElement;
+  function setTheme(t) { root.setAttribute('data-theme', t); document.querySelectorAll('[data-theme-set]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.themeSet === t)); }); }
+  var saved = null; try { saved = localStorage.getItem('zchan-theme'); } catch (e) {}
+  setTheme(saved === 'light' ? 'light' : 'dark');
+  document.querySelectorAll('[data-theme-set]').forEach(function (b) { b.addEventListener('click', function () { setTheme(b.dataset.themeSet); try { localStorage.setItem('zchan-theme', b.dataset.themeSet); } catch (e) {} }); });
+})();
+</script>
+</body>
+</html>

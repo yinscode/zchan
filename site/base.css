@@ -1,0 +1,50 @@
+/* Shared by the docs and status pages: the landing page's tokens, header and controls.
+   Dark by default; light on request. Pine and sage give diagrams and labels their tone. */
+:root {
+  --bg: #000000; --raise: #0A0A0A; --card: #1F1F1F; --pine: #0B1210;
+  --line: rgba(255,255,255,.14); --line-hi: rgba(255,255,255,.25);
+  --fg: #EDEDED; --fg2: #A1A1A1; --fg3: #878787; --sage: #8FA39A;
+  --gold: #F4BC45; --gold-text: #F4BC45; --on-gold: #000000;
+  --mint: #62D5A0; --blue: #4D8DFF; --coral: #F27D68;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #FFFFFF; --raise: #FAFAFA; --card: #F2F2F2; --pine: #F1F5F2; --line: #EAEAEA; --line-hi: #CFCFCF;
+  --fg: #171717; --fg2: #666666; --fg3: #737373; --sage: #5D7167;
+  --gold: #F4BC45; --gold-text: #B97700; --on-gold: #171717;
+  --mint: #1A8754; --blue: #2563EB; --coral: #C8432B;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.65 var(--sans); -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+.wrap { max-width: 1200px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.label { font: 500 12px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sage); }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.mark { display: inline-flex; align-items: center; gap: 10px; color: var(--fg); }
+.mark:hover { text-decoration: none; }
+.mark b { font: 600 19px/1 var(--sans); letter-spacing: -0.04em; }
+.mark b span { color: var(--fg2); font-weight: 450; }
+.glyph { display: inline-block; width: 30px; height: 10px; position: relative; }
+.glyph::before { content: ""; position: absolute; left: 4px; right: 4px; top: 4.5px; height: 1px; background: var(--fg3); }
+.glyph::after { content: ""; position: absolute; left: 0; top: 1px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 22px 0 0 var(--gold); }
+nav.links { display: flex; gap: 20px; font-size: 14px; }
+nav.links a { color: var(--fg2); }
+nav.links a:hover, nav.links a[aria-current="page"] { color: var(--fg); text-decoration: none; }
+.top .right { margin-left: auto; }
+.btn { display: inline-flex; align-items: center; justify-content: center; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line-hi); color: var(--fg); font: 500 14px/1 var(--sans); background: transparent; cursor: pointer; white-space: nowrap; }
+.btn:hover { text-decoration: none; border-color: var(--fg3); }
+.btn.primary { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+footer.base { border-top: 1px solid var(--line); margin-top: 72px; padding-block: 24px 40px; color: var(--fg3); font-size: 13px; }
+footer.base .wrap { display: flex; justify-content: space-between; align-items: center; gap: 12px 24px; flex-wrap: wrap; }
+.theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; }
+.theme button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--fg2); font: 500 12px/1 var(--sans); cursor: pointer; }
+.theme button[aria-pressed="true"] { background: var(--card); color: var(--fg); }
+@media (max-width: 760px) { nav.links { display: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

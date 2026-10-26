@@ -16,7 +16,7 @@ The kit is in `deploy/`:
 | `install.sh` | Creates the `zchan` user, installs the services and Caddy, starts everything. |
 | `run.sh` | Each service's flags (same parties, ports and prices as the testnet playground). |
 | `zchan@.service` | One systemd unit per service: `zchan@solver`, `zchan@playground`, … |
-| `Caddyfile` | `/` landing page and `/play` playground page, both as files; `/api/*` to the playground service. |
+| `Caddyfile` | The site as files (`/` landing, `/play`, `/docs/`, `/status/`); `/api/*` to the playground service. |
 
 ## What the server needs
 
@@ -66,7 +66,7 @@ ssh root@<droplet-ip> 'free -h; df -h /; nproc; . /etc/os-release; echo $PRETTY_
 
 | What changed | Command | Restarts |
 |---|---|---|
-| The landing page (`site/zchan-landing.html`, copied into `site/index.html`) or the playground page (`crates/zchan/src/playground.html`) | `SITE_ONLY=1 HOST=root@<droplet-ip> deploy/push.sh` | nothing; live in seconds |
+| Any page: landing (`site/zchan-landing.html`, copied into `site/index.html`), playground (`crates/zchan/src/playground.html`), docs (`site/docs/` and the markdown in `docs/`), status (`site/status/`) | `SITE_ONLY=1 HOST=root@<droplet-ip> deploy/push.sh` | nothing; live in seconds |
 | Code | `deploy/build-linux.sh && HOST=root@<droplet-ip> DOMAIN=<domain> deploy/push.sh` | every service, for a few seconds |
 | The same, built on the server | `BUILD=server HOST=root@<droplet-ip> DOMAIN=<domain> deploy/push.sh` | every service |
 

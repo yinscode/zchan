@@ -4,7 +4,7 @@
 # the committed source and compile it on the server instead.
 #
 #   HOST=root@203.0.113.5 DOMAIN=zchan.example.com deploy/push.sh              # update code and site
-#   SITE_ONLY=1 HOST=root@203.0.113.5 deploy/push.sh                           # the two pages only, no restart
+#   SITE_ONLY=1 HOST=root@203.0.113.5 deploy/push.sh                           # the site only, no restart
 #   MOVE_DATA=1 HOST=root@203.0.113.5 DOMAIN=zchan.example.com deploy/push.sh  # first time: also move
 #                                     the testnet wallets and channels from .demo/testnet
 # NODE_URL sets the node's JSON-RPC URL as seen from the server (first install only).
@@ -13,17 +13,31 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${HOST:?set HOST, e.g. root@203.0.113.5}"
+
+# The public site: landing page, playground page, docs (the viewer and its markdown),
+# status page, shared stylesheet and social preview.
+DOCS=(quickstart use-cases design x402-zchannel mpp-zchannel security privacy demo deploy testnet)
+stage_site() {
+  mkdir -p "$1/docs" "$1/status"
+  cp site/index.html site/base.css site/og.png "$1/"
+  cp crates/zchan/src/playground.html "$1/play.html"
+  cp site/docs/index.html "$1/docs/"
+  cp site/status/index.html "$1/status/"
+  for d in "${DOCS[@]}"; do cp "docs/$d.md" "$1/docs/"; done
+}
+
 if [ "${SITE_ONLY:-0}" = 1 ]; then
-  for f in site/index.html:index.html crates/zchan/src/playground.html:play.html; do
-    ssh ${SSH_KEY:+-i "$SSH_KEY"} "$HOST" "cat > /var/www/zchan/${f#*:}.new && mv /var/www/zchan/${f#*:}.new /var/www/zchan/${f#*:}" < "${f%%:*}"
-  done
-  echo "landing page and playground page updated"
+  S=$(mktemp -d)
+  trap 'rm -rf "$S"' EXIT
+  stage_site "$S"
+  COPYFILE_DISABLE=1 tar --no-xattrs -C "$S" -czf - . | ssh ${SSH_KEY:+-i "$SSH_KEY"} "$HOST" 'tar -C /var/www/zchan -xzf - && chmod -R a+rX /var/www/zchan'
+  echo "site updated: landing, playground, docs, status"
   exit 0
 fi
 : "${DOMAIN:?set DOMAIN, e.g. zchan.example.com}"
 B=$(mktemp -d)
 trap 'rm -rf "$B"' EXIT
-mkdir -p "$B/bin" "$B/site"
+mkdir -p "$B/bin"
 if [ "${BUILD:-}" = server ]; then
   git diff --quiet HEAD -- crates Cargo.toml Cargo.lock rust-toolchain.toml || echo "note: building the last commit; uncommitted changes in crates/ are not included" >&2
   git archive --format=tar.gz -o "$B/src.tar.gz" HEAD Cargo.toml Cargo.lock rust-toolchain.toml crates
@@ -31,8 +45,7 @@ else
   [ -x deploy/dist/zchan-playground ] || { echo "no Linux binaries: run deploy/build-linux.sh first, or pass BUILD=server" >&2; exit 1; }
   cp deploy/dist/zchan-* "$B/bin/"
 fi
-cp site/index.html "$B/site/"
-cp crates/zchan/src/playground.html "$B/site/play.html"
+stage_site "$B/site"
 cp deploy/run.sh deploy/install.sh 'deploy/zchan@.service' deploy/Caddyfile scripts/upstream.py "$B/"
 if [ "${MOVE_DATA:-0}" = 1 ]; then
   if pgrep -f 'zchan-(solver|merchant|playground) --data .*\.demo/testnet' >/dev/null; then

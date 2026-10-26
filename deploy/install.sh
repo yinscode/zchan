@@ -53,7 +53,7 @@ fi
 install -m 755 bin/* /opt/zchan/bin/
 install -m 755 run.sh /opt/zchan/run.sh
 install -m 644 upstream.py /opt/zchan/upstream.py
-install -m 644 site/index.html site/play.html /var/www/zchan/
+cp -r site/. /var/www/zchan/ && chmod -R a+rX /var/www/zchan
 install -m 644 'zchan@.service' /etc/systemd/system/
 
 # Caddy serves HTTPS and gets its own certificate.

@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Zchan Playground</title>
+<meta name="description" content="Try Zchan on Zcash testnet with an agent of your own: shield in, open a channel, pay merchants over x402 or MPP, shield out.">
+<link rel="canonical" href="https://165-22-48-127.sslip.io/play">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Zchan">
+<meta property="og:title" content="Zchan Playground: shield in, pay, shield out">
+<meta property="og:description" content="Your own agent on Zcash testnet. Payments in milliseconds with zero network fees; the chain sees only the open and the close.">
+<meta property="og:image" content="https://165-22-48-127.sslip.io/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://165-22-48-127.sslip.io/og.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23000'/%3E%3Cpath d='M5 6h14L5 18h14' fill='none' stroke='%23EDEDED' stroke-width='1.6' stroke-linejoin='round'/%3E%3Ccircle cx='5' cy='6' r='2.2' fill='%23F4BC45'/%3E%3Ccircle cx='19' cy='18' r='2.2' fill='%23F4BC45'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,9 +22,9 @@
    steps down the left as one bordered column, and what the chain saw on the right.
    Gold marks the current action, mint what is done and verified, coral real failures. */
 :root {
-  --bg: #000000; --raise: #0A0A0A; --card: #1F1F1F;
+  --bg: #000000; --raise: #0A0A0A; --card: #1F1F1F; --pine: #0B1210;
   --line: rgba(255,255,255,.14); --line-hi: rgba(255,255,255,.25);
-  --fg: #EDEDED; --fg2: #A1A1A1; --fg3: #878787;
+  --fg: #EDEDED; --fg2: #A1A1A1; --fg3: #878787; --sage: #8FA39A;
   --gold: #F4BC45; --gold-text: #F4BC45; --on-gold: #000000;
   --mint: #62D5A0; --blue: #4D8DFF; --coral: #F27D68;
   --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -23,8 +32,8 @@
   color-scheme: dark;
 }
 :root[data-theme="light"] {
-  --bg: #FFFFFF; --raise: #FAFAFA; --card: #F2F2F2; --line: #EAEAEA; --line-hi: #CFCFCF;
-  --fg: #171717; --fg2: #666666; --fg3: #737373;
+  --bg: #FFFFFF; --raise: #FAFAFA; --card: #F2F2F2; --pine: #F1F5F2; --line: #EAEAEA; --line-hi: #CFCFCF;
+  --fg: #171717; --fg2: #666666; --fg3: #737373; --sage: #5D7167;
   --gold: #F4BC45; --gold-text: #B97700; --on-gold: #171717;
   --mint: #1A8754; --blue: #2563EB; --coral: #C8432B;
   color-scheme: light;
@@ -36,7 +45,7 @@ a:hover { text-decoration: underline; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 p { margin: 0; }
 h1, h2, h3 { margin: 0; font-weight: 500; text-wrap: balance; }
-.label { font: 500 12px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--fg3); }
+.label { font: 500 12px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sage); }
 .wrap { max-width: 1200px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 56px; }
 
 /* Header */
@@ -59,11 +68,11 @@ header { display: flex; justify-content: space-between; align-items: center; gap
 .intro { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding-block: 36px 28px; }
 h1 { font-size: clamp(30px, 4vw, 40px); line-height: 1.05; letter-spacing: -0.045em; font-weight: 480; }
 .intro p { color: var(--fg2); font-size: 17px; max-width: 72ch; }
-.rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 24px; }
+.rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 24px; background: var(--pine); }
 .rail .r { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: center; }
 .rail .r::after { content: ""; position: absolute; left: 30px; right: 14px; top: 50%; height: 1px; background: var(--line-hi); z-index: 0; }
 .rail .r:last-child::after { display: none; }
-.rail .r span.label { position: relative; z-index: 1; background: var(--bg); padding-right: 8px; justify-self: start; }
+.rail .r span.label { position: relative; z-index: 1; background: var(--pine); padding-right: 8px; justify-self: start; }
 .badge { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--fg3); display: grid; place-items: center; font: 500 11px/1 var(--mono); color: var(--fg3); background: var(--bg); transition: background-color .18s, border-color .18s, color .18s; }
 .done .badge { background: var(--mint); border-color: var(--mint); color: var(--bg); }
 .now .badge { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
@@ -110,7 +119,7 @@ button:disabled { opacity: .38; cursor: not-allowed; }
 .shop .path { font: 12px/1.4 var(--mono); color: var(--fg3); word-break: break-all; }
 .shop .go { display: flex; gap: 6px; flex-wrap: wrap; }
 .shop button { height: 32px; padding: 0 11px; font-size: 13px; }
-.trace { border: 1px solid var(--line); border-radius: 8px; background: var(--raise); padding: 12px 14px; font: 12.5px/1.55 var(--mono); overflow-x: auto; }
+.trace { border: 1px solid var(--line); border-radius: 8px; background: var(--pine); padding: 12px 14px; font: 12.5px/1.55 var(--mono); overflow-x: auto; }
 .trace .row { display: grid; grid-template-columns: 52px 76px minmax(0, 1fr); gap: 10px; padding: 3px 0; }
 .trace .ms { color: var(--fg3); text-align: right; font-variant-numeric: tabular-nums; }
 .trace .k { color: var(--gold-text); }
@@ -118,7 +127,7 @@ button:disabled { opacity: .38; cursor: not-allowed; }
 
 /* What the chain saw */
 .ledger { position: sticky; top: 16px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.ledger .lh { padding: 18px 20px 14px; display: grid; gap: 4px; border-bottom: 1px solid var(--line); }
+.ledger .lh { padding: 18px 20px 14px; display: grid; gap: 4px; border-bottom: 1px solid var(--line); background: var(--pine); }
 .ledger h3 { font-size: 17px; letter-spacing: -0.02em; font-weight: 520; }
 .ledger .sub { color: var(--fg3); font-size: 13px; }
 .stat { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 13px 20px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--fg2); }
@@ -165,20 +174,20 @@ footer p { max-width: 80ch; }
 
   <div class="intro">
     <h1>Try Zchan on Zcash testnet.</h1>
-    <p>You get an agent of your own. Fund it privately, open one channel, pay merchants over x402 or MPP, then settle. Payments take milliseconds; opening and settling wait for testnet blocks.</p>
+    <p>You get an agent of your own. Shield in, open one channel, pay merchants over x402 or MPP, then shield out. Payments take milliseconds; opening and closing wait for testnet blocks.</p>
   </div>
 
   <div class="rail" role="list" aria-label="Progress">
-    <div class="r" id="p1" role="listitem"><span class="badge">1</span><span class="label">Fund</span></div>
+    <div class="r" id="p1" role="listitem"><span class="badge">1</span><span class="label">Shield in</span></div>
     <div class="r" id="p2" role="listitem"><span class="badge">2</span><span class="label">Open</span></div>
     <div class="r" id="p3" role="listitem"><span class="badge">3</span><span class="label">Pay</span></div>
-    <div class="r" id="p4" role="listitem"><span class="badge">4</span><span class="label">Settle</span></div>
+    <div class="r" id="p4" role="listitem"><span class="badge">4</span><span class="label">Shield out</span></div>
   </div>
 
   <div class="grid">
     <div class="steps">
       <section class="step" id="s1">
-        <div class="h"><span class="badge">1</span><h2>Fund your agent</h2><span class="tag" id="t1"></span></div>
+        <div class="h"><span class="badge">1</span><h2>Shield in</h2><span class="tag" id="t1"></span></div>
         <p class="d">The house wallet sends your agent <b id="grant">—</b> as an Ironwood note. Nothing about it is transparent.</p>
         <button id="b1" class="primary">Shield in</button>
         <div id="o1"></div>
@@ -198,9 +207,9 @@ footer p { max-width: 80ch; }
         <div id="o3"></div>
       </section>
       <section class="step" id="s4">
-        <div class="h"><span class="badge">4</span><h2>Settle</h2><span class="tag" id="t4"></span></div>
+        <div class="h"><span class="badge">4</span><h2>Shield out</h2><span class="tag" id="t4"></span></div>
         <p class="d">A cooperative close: the solver builds it, and your agent signs only after decrypting its own change. Both sides are paid to Ironwood. It needs more than 10,000 zat of payments first, because a shielded close costs that much more than a plain one, paid from the solver's share.</p>
-        <button id="b4" disabled>Settle channel</button>
+        <button id="b4" disabled>Shield out</button>
         <div id="o4"></div>
       </section>
     </div>
@@ -277,7 +286,7 @@ footer p { max-width: 80ch; }
   function trace(e) {
     if (e.error) {
       var m = /has (\d+) left, needs (\d+)/.exec(e.error);
-      return '<div class="err">' + (m ? 'Your channel has ' + zat(+m[1]) + ' left and this call costs ' + zat(+m[2]) + '. Settle it to get the rest back.' : esc(e.error)) + '</div>';
+      return '<div class="err">' + (m ? 'Your channel has ' + zat(+m[1]) + ' left and this call costs ' + zat(+m[2]) + '. Shield out to get the rest back.' : esc(e.error)) + '</div>';
     }
     var rows = (e.trace || []).map(function (t) {
       var v;
@@ -295,7 +304,7 @@ footer p { max-width: 80ch; }
   }
   // Progress: done steps in mint, the current one in gold, later ones gray.
   function progress(done, working) {
-    var cur = done.indexOf(false), tags = ['funded', 'open', 'paid', 'settled'];
+    var cur = done.indexOf(false), tags = ['shielded in', 'open', 'paid', 'shielded out'];
     done.forEach(function (d, i) {
       var now = i === cur, n = i + 1;
       [$('p' + n), $('s' + n)].forEach(function (el) {
@@ -345,7 +354,7 @@ footer p { max-width: 80ch; }
     var rows = (state.log || []).map(function (l) {
       if (l.kind === 'pay') return l.ok ? '<tr class="unseen"><td>Payment · ' + esc(l.merchant) + ' · ' + esc(l.protocol.toUpperCase()) + '</td><td>nothing, off chain</td></tr>' : '';
       if (!l.ok || !l.result || !l.result.tx || !l.result.tx.height) return '';
-      var name = { 'shield-in': 'Fund (shield in)', open: 'Open channel', close: 'Settle (shield out)' }[l.kind] || l.kind;
+      var name = { 'shield-in': 'Shield in', open: 'Open channel', close: 'Shield out' }[l.kind] || l.kind;
       return '<tr class="tx"><td>' + name + '</td><td>' + seen(l.kind, l.result.tx)[0] + '</td></tr>';
     }).join('');
     $('ledger').innerHTML = rows || '<tr class="unseen"><td>Nothing yet.</td></tr>';

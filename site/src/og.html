@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- The social preview (site/og.png): render at 1200x630 with headless Chrome. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+* { box-sizing: border-box; margin: 0; }
+body { width: 1200px; height: 630px; background: #000; color: #EDEDED; font-family: "Geist", sans-serif; position: relative; overflow: hidden; }
+.grid { position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1px); background-size: 24px 24px; }
+.pine { position: absolute; left: 64px; right: 64px; top: 64px; bottom: 64px; border: 1px solid rgba(255,255,255,.14); border-radius: 18px; background: rgba(11,18,16,.85); }
+.mark { position: absolute; left: 104px; top: 104px; display: flex; align-items: center; gap: 14px; font: 600 34px/1 "Geist"; letter-spacing: -0.04em; }
+.mark i { display: inline-block; width: 52px; height: 14px; position: relative; }
+.mark i::before { content: ""; position: absolute; left: 6px; right: 6px; top: 6.5px; height: 1px; background: #878787; }
+.mark i::after { content: ""; position: absolute; left: 0; top: 1px; width: 12px; height: 12px; border-radius: 50%; background: #F4BC45; box-shadow: 40px 0 0 #F4BC45; }
+h1 { position: absolute; left: 104px; top: 250px; font: 480 78px/1 "Geist"; letter-spacing: -0.055em; }
+p { position: absolute; left: 104px; top: 448px; font: 26px/1.4 "Geist"; color: #A1A1A1; }
+.rail { position: absolute; left: 104px; right: 104px; top: 186px; display: flex; align-items: center; }
+.rail .end { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #A1A1A1; }
+.rail .seg { flex: 1; height: 1px; background: rgba(255,255,255,.25); }
+.rail .st { font: 500 15px/1 "Geist Mono"; padding: 6px 9px; border-radius: 7px; border: 1px solid rgba(255,255,255,.25); color: #F4BC45; }
+.rail .st.on { background: #F4BC45; color: #000; border-color: #F4BC45; }
+.tags { position: absolute; right: 104px; top: 104px; display: flex; gap: 8px; font: 500 15px/1 "Geist Mono"; color: #8FA39A; }
+.tags span { border: 1px solid rgba(255,255,255,.14); border-radius: 7px; padding: 8px 10px; }
+</style></head><body>
+<div class="grid"></div><div class="pine"></div>
+<div class="mark">Zchan<i></i></div>
+<div class="tags"><span>x402 v2</span><span>MPP</span><span>Zcash</span></div>
+<div class="rail"><span class="end"></span><span class="seg"></span><span class="st">01</span><span class="seg"></span><span class="st on">02</span><span class="seg"></span><span class="st">03</span><span class="seg"></span><span class="end"></span></div>
+<h1>Micropayments<br>in milliseconds.</h1>
+<p>Zero network fees per payment. Settled cooperatively to shielded Zcash.</p>
+</body></html>
