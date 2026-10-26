@@ -2,3 +2,4 @@
 .DS_Store
 /.demo
 /video
+deploy/dist/

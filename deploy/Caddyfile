@@ -1,0 +1,16 @@
+# The landing page at /, the judge playground at /play (its API under /api/).
+# Only the playground is public; the solver and merchants stay on localhost.
+{$ZCHAN_DOMAIN} {
+	encode zstd gzip
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8088
+	}
+	handle /play {
+		rewrite * /
+		reverse_proxy 127.0.0.1:8088
+	}
+	handle {
+		root * /var/www/zchan
+		file_server
+	}
+}

@@ -112,6 +112,8 @@ Each on-chain step links its transaction in small type underneath and shows a li
   - The merchants and the solver can stay on localhost; only the playground needs to be public.
   - Each judge's payments cost the house the grant (160,000 zat) plus fees. 2,000,000 zat serves about 12 judges; send more for more.
 
+To host the landing page and the playground on a server with its own domain, see [deploy.md](deploy.md).
+
 ### Serving it from a laptop
 
 A Cloudflare quick tunnel gives a public HTTPS link with no account or open ports. The playground stays bound to localhost:

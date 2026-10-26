@@ -1,0 +1,20 @@
+[Unit]
+Description=zchan %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zchan
+Group=zchan
+EnvironmentFile=/etc/zchan/env
+ExecStart=/opt/zchan/run.sh %i
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/zchan
+
+[Install]
+WantedBy=multi-user.target
