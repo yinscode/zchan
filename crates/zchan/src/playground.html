@@ -222,7 +222,7 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
     $('b4').disabled = !!busy || !ch || ch.status !== 'open' || !(ch.level > 10000);
     $('s1').classList.toggle('done', !!(s1 && s1.ok)); $('s2').classList.toggle('done', !!(s2 && s2.ok)); $('s4').classList.toggle('done', !!(s4 && s4.ok));
     var b = function (k) { return busy && busy.indexOf(k) === 0 ? '<div class="busy">' + esc(busy) + ' · <span id="waited">' + waitText() + '</span></div>' +
-      '<div class="why">Sent in about a second; now a miner has to include it. Miners build each block before they see new transactions, so it usually lands in the second block after you click.</div>' : ''; };
+      '<div class="why">Sent in about a second; now a miner has to include it. On testnet today most blocks come from a miner that rarely includes transactions, so this often takes one to three minutes. Payments never wait for this.</div>' : ''; };
     $('o1').innerHTML = b('shielding') + step('shield-in', s1, s1 && s1.ok ? [['You received ' + zat(s1.result.amount) + ', shielded', 'gold'], ['Your balance: ' + zat(state.shielded)]] : []);
     var low = state.shielded < ((info && info.min_open) || 0) && !(ch && ch.status === 'open') && !busy && state.granted;
     $('o2').innerHTML = b('opening') + (low ? '<div class="err">Your balance (' + zat(state.shielded) + ') has been spent on payments and fees: another channel needs ' + zat(info.min_open) + '.</div><button class="ghost" id="fresh" style="margin-top:10px">Start a new session</button>' : '') + step('open', low && s2 && !s2.ok ? null : s2, s2 && s2.ok ? [['Channel of ' + zat(s2.result.capacity), 'gold'], ['Safety refund from block ' + Number(s2.result.lock_height).toLocaleString('en-US')]] : []);
