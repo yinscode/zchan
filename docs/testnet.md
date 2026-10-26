@@ -21,6 +21,17 @@ Every channel reconciled on the solver (`reconcile: ok` for all four). Funds cam
 
 Everything that runs on regtest runs on testnet unchanged. Only the node, the funding and the lock lengths differ.
 
+## Judge playground on testnet (blocks 4,544,078–4,544,097)
+
+`PORT=8088 scripts/playground.sh testnet` started the solver and three merchants. Each merchant channel holds 1,000,000 zat and was funded from notes (`1e5af8b0…`, `4d6f2c47…`, `f2402582…`: transparent in 0). The solver also sent the house wallet 2,000,000 zat, shielded. A judge session through the public tunnel link then ran:
+
+| Step | Txid | Height | On chain |
+|---|---|---|---|
+| Shield in (house → the judge's agent, 160,000 zat) | `090bf78b59e87b75396abdc8b9c389bfdef798f38588b497616d1e70ea8ba3fb` | 4,544,094 | transparent in 0, out none |
+| Open a channel (funded from that note) | `0fcf597785088525010c580bbcbbd601a163cd52f01a1c88f4c541d3b069aea1` | 4,544,096 | transparent in 0; channel output 100,000 |
+| Four payments: weather (x402), news (MPP), proxied search (x402), proxied POST echo (MPP) | none | — | 17–35 ms each through the tunnel; agent level 14,400 |
+| Shield out (agent-started cooperative close) | `c0919962129a3816f574bbdc7ae4158d18cc105e7a2320d990dd5207760fc1b6` | 4,544,097 | transparent in 1, **out none**; 80,000 into Ironwood; the agent's 75,600 zat change found with its own key |
+
 ## Agent-initiated shielded close on testnet (blocks 4,526,607–4,526,623)
 
 Agent-1 funded a channel from notes, made one payment, and closed it cooperatively. It asked the solver for a close offer, checked that the offer paid its own change to its Ironwood address at its own signed level, and co-signed. Merchant-a then closed its channel the same way. Both closes spend only the channel output and have **no transparent outputs**. The record is in [spikes/testnet-agent-close.json](spikes/testnet-agent-close.json).
