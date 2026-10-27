@@ -49,22 +49,22 @@ This starts a regtest node, then funds and shields every party. It opens the cha
 
 ## 3. Pay an API from an agent
 
-Every agent command takes the agent's data directory, the node and the solver. For the local demo's agent-1:
+Every agent command takes the agent's data directory, the node and the solver. A shell function keeps them in one place (it works in bash and zsh). For the local demo's agent-1:
 
 ```bash
-A="--data .demo/regtest/agent-1 --node http://127.0.0.1:18272/ --solver http://127.0.0.1:7100 --dev-seed agent-1"
+agent() { target/release/zchan-agent "$@" --data .demo/regtest/agent-1 --node http://127.0.0.1:18272/ --solver http://127.0.0.1:7100 --dev-seed agent-1; }
 ```
 
 Pay over x402 v2 and fetch:
 
 ```bash
-target/release/zchan-agent get 'http://127.0.0.1:7204/api/search?q=zcash' $A
+agent get 'http://127.0.0.1:7204/api/search?q=zcash'
 ```
 
 The same over MPP, with a POST:
 
 ```bash
-target/release/zchan-agent get http://127.0.0.1:7204/api/echo --mpp --method POST --body hello $A
+agent get http://127.0.0.1:7204/api/echo --mpp --method POST --body hello
 ```
 
 `get` answers the 402, gets a quote from the solver, signs the channel's next state and retries with the merchant's receipt. It prints the response.
@@ -72,13 +72,13 @@ target/release/zchan-agent get http://127.0.0.1:7204/api/echo --mpp --method POS
 Settle the channel, with both sides paid to Ironwood:
 
 ```bash
-target/release/zchan-agent close $A
+agent close
 ```
 
 A fresh agent opens its own channel first, funded from shielded notes:
 
 ```bash
-target/release/zchan-agent open --capacity 100000 --lock-blocks 2000 --shielded $A
+agent open --capacity 100000 --lock-blocks 2000 --shielded
 ```
 
 The other agent commands (`balance`, `shield`, `status`, `watch`, `serve` and more) are listed by `zchan-agent` itself. [Agents](#agents) covers asking a person for a budget, price caps, and instructions to give an agent.
@@ -117,7 +117,7 @@ Clients call port 7205 instead of 3000:
 An agent pays and fetches it in one step:
 
 ```bash
-target/release/zchan-agent get 'http://127.0.0.1:7205/api/forecast?city=Lisbon' --max-price 5000 $A
+agent get 'http://127.0.0.1:7205/api/forecast?city=Lisbon' --max-price 5000
 ```
 
 - **Prices:** per path in zatoshis. A route ending in `*` matches by prefix, as in `/api/*=500`. Query strings do not change the price.
