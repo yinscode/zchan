@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs or updates zchan on this server, from the bundle deploy/push.sh uploads.
-# Run as root: DOMAIN=zchan.example.com ./install.sh
+# Run as root: DOMAIN=zchan.example.com [ALIASES="www.zchan.example.com"] ./install.sh
 # Wallets and channels in ./data are moved in only on a first install; an existing
 # /var/lib/zchan is never overwritten.
 set -euo pipefail
@@ -67,6 +67,10 @@ if ! command -v caddy >/dev/null; then
   apt-get install -y -qq caddy >/dev/null 2>&1
 fi
 sed "s/{\$ZCHAN_DOMAIN}/$DOMAIN/" Caddyfile > /etc/caddy/Caddyfile
+# Other names (ALIASES="www.example.com old.example.net") redirect here, keeping the path.
+if [ -n "${ALIASES:-}" ]; then
+  printf '\n%s {\n\tredir https://%s{uri} permanent\n}\n' "$(echo $ALIASES | sed 's/ /, /g')" "$DOMAIN" >> /etc/caddy/Caddyfile
+fi
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
 # Open the web ports if this server runs ufw (SSH stays allowed).

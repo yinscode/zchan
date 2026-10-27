@@ -22,4 +22,4 @@ A channel is worth opening wherever payments are smaller than one on-chain fee o
 | **Media and live events.** Pay per minute watched, per article read, or per tip during a stream. | per minute | Payments small enough to match the content. |
 | **Suppliers and marketplaces.** A marketplace runs the solver, netting many buyers' payments into one channel per seller and settling daily. | daily settlement | One transaction per seller per day, with every payment reconciled. |
 
-Start with the [Quickstart](#quickstart), or try the flow in the [Playground](https://165-22-48-127.sslip.io/play).
+Start with the [Quickstart](#quickstart), or try the flow in the [Playground](https://zchan.cash/play).

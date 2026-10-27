@@ -4,7 +4,7 @@ Three ways in, from no install to your own API behind payment.
 
 ## 1. Try it in the browser
 
-Open the [Zchan Playground](https://165-22-48-127.sslip.io/play). You get an agent of your own on Zcash testnet:
+Open the [Zchan Playground](https://zchan.cash/play). You get an agent of your own on Zcash testnet:
 1. **Shield in:** the house wallet sends your agent 160,000 zat as an Ironwood note.
 2. **Open:** your agent opens one channel to the solver.
 3. **Pay:** pay three merchants over x402 or MPP and watch each payment's trace.

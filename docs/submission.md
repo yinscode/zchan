@@ -17,7 +17,7 @@ Everything the submission asks for (repository, demo, description, two-minute vi
 Under the form's 2,000-character limit (1975 characters). Paste the block as plain text.
 
 ```text
-Zchan: payment channels for AI agents on Zcash. Live on testnet: https://165-22-48-127.sslip.io
+Zchan: payment channels for AI agents on Zcash. Live on testnet: https://zchan.cash
 
 WHAT IT DOES
 An agent funds one channel to a solver and pays any merchant behind it. A payment is a newly signed channel state, not a transaction: 17 ms median, no block wait, 0 zat network fee. Services charge per request over x402 v2 or MPP, or put Zchan's proxy in front of an existing API. Two transactions settle any number of payments.

@@ -4,6 +4,7 @@
 # the committed source and compile it on the server instead.
 #
 #   HOST=root@203.0.113.5 DOMAIN=zchan.example.com deploy/push.sh              # update code and site
+#   ALIASES='www.zchan.example.com' …                                          # other names, redirected to DOMAIN
 #   SITE_ONLY=1 HOST=root@203.0.113.5 deploy/push.sh                           # the site only, no restart
 #   MOVE_DATA=1 HOST=root@203.0.113.5 DOMAIN=zchan.example.com deploy/push.sh  # first time: also move
 #                                     the testnet wallets and channels from .demo/testnet
@@ -58,4 +59,4 @@ if [ "${MOVE_DATA:-0}" = 1 ]; then
 fi
 
 COPYFILE_DISABLE=1 tar --no-xattrs -C "$B" -czf - . | ssh ${SSH_KEY:+-i "$SSH_KEY"} "$HOST" "rm -rf /tmp/zchan-deploy && mkdir -m 700 /tmp/zchan-deploy && tar -C /tmp/zchan-deploy -xzf - \
-  && DOMAIN='$DOMAIN' NODE_URL='${NODE_URL:-}' /tmp/zchan-deploy/install.sh; rc=\$?; rm -rf /tmp/zchan-deploy; exit \$rc"
+  && DOMAIN='$DOMAIN' ALIASES='${ALIASES:-}' NODE_URL='${NODE_URL:-}' /tmp/zchan-deploy/install.sh; rc=\$?; rm -rf /tmp/zchan-deploy; exit \$rc"
