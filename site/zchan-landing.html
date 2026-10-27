@@ -183,10 +183,16 @@ details.menu .panel a:hover { background: var(--card); }
 .path li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; }
 .path li::before { content: ""; width: 7px; height: 7px; margin-top: 10px; border-radius: 50%; background: var(--gold); }
 
-/* Use cases */
-.cases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.case { padding: 28px; display: grid; gap: 14px; align-content: start; min-width: 0; }
-.case + .case { border-left: 1px solid var(--line); }
+/* Use cases: two groups, each a 1px connected grid */
+.casegroups { display: grid; gap: 36px; }
+.cg { display: grid; gap: 14px; }
+.cg .gh { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; }
+.cg .gh p { color: var(--fg3); font-size: 14px; margin: 0; }
+.cases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.case { padding: 24px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; min-width: 0; background: var(--bg); }
+.case .meterline { white-space: normal; }
+.case .meterline b { white-space: nowrap; }
+.case h3 { font-size: 18px; }
 .case p { color: var(--fg2); font-size: 15px; }
 .meterline { font: 13px/1.5 var(--mono); background: var(--pine); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: var(--fg2); overflow-x: auto; white-space: nowrap; }
 .meterline b { color: var(--gold-text); font-weight: 500; }
@@ -284,7 +290,8 @@ footer .base { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--
   details.menu { display: block; }
   .lab, .proto, .paths, .cases, .priv, .panes, .quick { grid-template-columns: minmax(0, 1fr); }
   .lab .stage, .steps { border-right: 0; border-bottom: 1px solid var(--line); }
-  .path + .path, .case + .case, .priv .col + .col, .pane + .pane { border-left: 0; border-top: 1px solid var(--line); }
+  .cases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .path + .path, .priv .col + .col, .pane + .pane { border-left: 0; border-top: 1px solid var(--line); }
   .evidence .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .evidence .cell:nth-child(3) { border-left: 0; padding-left: 0; }
   .evidence .cell:nth-child(n+3) { border-top: 1px solid var(--line); }
@@ -308,7 +315,10 @@ footer .base { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--
   .step .who { grid-column: 2; grid-row: 1; }
   .step .t { grid-column: 3; grid-row: 1; }
   .step p { grid-column: 2 / 4; grid-row: 2; }
-  .path, .case, .priv .col { padding: 22px; }
+  .cases { grid-template-columns: minmax(0, 1fr); }
+  .path, .priv .col { padding: 22px; }
+  .case { padding: 18px 20px; grid-template-rows: auto auto; gap: 10px; }
+  .case p { display: none; }
   .lab .stage { padding: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -483,24 +493,59 @@ footer .base { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--
         <span class="label">Use cases</span>
         <h2>Anything priced below one on-chain fee.</h2>
       </div>
-      <div class="cases">
-        <article class="case">
-          <h3>Paid APIs</h3>
-          <p>Charge for each search, inference or data request. The agent pays only for the calls it makes.</p>
-          <div class="meterline">GET /api/search?q=zec → <b>3,000 zat</b></div>
-        </article>
-        <article class="case">
-          <h3>Paid MCP tools</h3>
-          <p>Earn from individual assistant tool calls, without subscriptions or API keys.</p>
-          <div class="meterline">tools/call translate → <b>800 zat</b></div>
-        </article>
-        <article class="case">
-          <h3>Metered infrastructure</h3>
-          <p>Charge by the second, the megabyte or the unit of work, as it is used.</p>
-          <div class="meterline">gpu · 40 s × 100 → <b>4,000 zat</b></div>
-        </article>
+      <div class="casegroups">
+        <div class="cg">
+          <div class="gh"><span class="label">Agentic payments</span><p>Software pays software, per request.</p></div>
+          <div class="cases">
+          <article class="case">
+            <h3>Paid APIs</h3>
+            <p>Charge for each search, inference or data request. The agent pays only for the calls it makes.</p>
+            <div class="meterline">GET /search?q=zec → <b>3,000 zat</b></div>
+          </article>
+          <article class="case">
+            <h3>Paid MCP tools</h3>
+            <p>Earn from individual assistant tool calls, without subscriptions or API keys.</p>
+            <div class="meterline">tools/call translate → <b>800 zat</b></div>
+          </article>
+          <article class="case">
+            <h3>Metered infrastructure</h3>
+            <p>Charge by the second, the megabyte or the unit of work, as it is used.</p>
+            <div class="meterline">gpu · 40 s × 100 → <b>4,000 zat</b></div>
+          </article>
+          <article class="case">
+            <h3>Agents paying agents</h3>
+            <p>A planning agent hires specialists per task. A new counterparty needs no new channel.</p>
+            <div class="meterline">review PR #212 → <b>2,500 zat</b></div>
+          </article>
+          </div>
+        </div>
+        <div class="cg">
+          <div class="gh"><span class="label">Commerce</span><p>People and machines pay per order, per unit, per minute.</p></div>
+          <div class="cases">
+          <article class="case">
+            <h3>Counters and cafés</h3>
+            <p>The till shows a QR code. The buyer’s agent checks the signed invoice and pays on approval, paid in about a second.</p>
+            <div class="meterline">QR · order A17 → <b>60,000 zat</b></div>
+          </article>
+          <article class="case">
+            <h3>Charging and vending</h3>
+            <p>A charger, Wi-Fi hotspot or parking meter bills as it runs. Stopping the session stops the payments.</p>
+            <div class="meterline">charger · per kWh → <b>9,000 zat</b></div>
+          </article>
+          <article class="case">
+            <h3>Media and tips</h3>
+            <p>Pay per article, per minute watched or per tip during a live stream.</p>
+            <div class="meterline">stream · per minute → <b>200 zat</b></div>
+          </article>
+          <article class="case">
+            <h3>Marketplaces</h3>
+            <p>The marketplace runs the solver and nets many buyers into one channel per seller, settled daily.</p>
+            <div class="meterline">seller 12 · 1,840 payments → <b>1 close</b></div>
+          </article>
+          </div>
+        </div>
       </div>
-      <a class="more" href="https://165-22-48-127.sslip.io/docs/#use-cases">All use cases, including commerce →</a>
+      <a class="more" href="https://165-22-48-127.sslip.io/docs/#use-cases">All use cases →</a>
     </div>
   </section>
 
