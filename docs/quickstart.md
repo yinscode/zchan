@@ -67,7 +67,7 @@ A fresh agent opens its own channel first, funded from shielded notes:
 target/release/zchan-agent open --capacity 100000 --lock-blocks 2000 --shielded $A
 ```
 
-The other agent commands (`balance`, `shield`, `status`, `watch`, `serve` and more) are listed by `zchan-agent` itself.
+The other agent commands (`balance`, `shield`, `status`, `watch`, `serve` and more) are listed by `zchan-agent` itself. [Agents](#agents) covers asking a person for a budget, price caps, and instructions to give an agent.
 
 ## 4. Put your API behind payment
 
@@ -88,6 +88,7 @@ The solver opens a channel to the new merchant when asked (`POST /admin/merchant
 
 ## Next
 
+- [Agents](#agents): budgets, price caps and instructions for an agent.
 - [Protocol](#design): the flow, the channel states and the trust model.
 - [x402 binding](#x402-zchannel) and [MPP binding](#mpp-zchannel): the wire formats.
 - [Security](#security): who sees what, and what the chain enforces.

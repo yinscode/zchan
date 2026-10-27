@@ -16,7 +16,7 @@ cd "$(dirname "$0")/.."
 
 # The public site: landing page, playground page, docs (the viewer and its markdown),
 # status page, shared stylesheet and social preview.
-DOCS=(quickstart use-cases design x402-zchannel mpp-zchannel security privacy demo deploy testnet)
+DOCS=(quickstart agents use-cases design x402-zchannel mpp-zchannel security privacy demo deploy testnet)
 stage_site() {
   mkdir -p "$1/docs" "$1/status"
   cp site/index.html site/base.css site/og.png "$1/"

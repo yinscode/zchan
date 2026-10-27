@@ -10,11 +10,16 @@
 //! zchan-agent notes                           unspent shielded notes
 //! zchan-agent shielded-address [--ua]         this party's Ironwood address (raw hex, or a
 //!                                             unified address any shielded wallet can pay)
-//! zchan-agent send-shielded ADDRESS_HEX ZAT   pay another party's Ironwood address
+//! zchan-agent send-shielded ADDRESS ZAT       pay an Ironwood address (raw hex, or a unified
+//!                                             address with an Ironwood receiver)
+//! zchan-agent request ZAT [--message TEXT]    a ZIP 321 payment link to this party's Ironwood
+//!                                             address, for a person to fund it from a wallet
 //! zchan-agent open --capacity ZAT --lock-blocks N [--shielded]
-//! zchan-agent get URL [--mpp] [--method M --body B]
-//!                                             pay a 402 (x402 v2, or MPP with --mpp) and fetch
-//! zchan-agent pay-ref INVOICE_URL             pay a checkout invoice by reference
+//! zchan-agent get URL [--mpp] [--method M --body B] [--max-price ZAT]
+//!                                             pay a 402 (x402 v2, or MPP with --mpp) and fetch;
+//!                                             refuse a price above --max-price
+//! zchan-agent pay-ref INVOICE_URL [--max-price ZAT]
+//!                                             pay a checkout invoice by reference
 //! zchan-agent close [--channel ID]            cooperative close (both sides to Ironwood)
 //! zchan-agent resume                          retry payments left pending
 //! zchan-agent status
@@ -55,13 +60,20 @@ async fn main() {
             None => die("no confirmed transparent coins to shield"),
         },
         Some("shielded-address") if a.flag("ua") => println!("{}", zchan_tx::keys::unified_address(&ctx.wallet.shielded_address(0), ctx.net)),
+        Some("request") => {
+            let zat = a.positional.first().and_then(|z| z.parse::<u64>().ok()).filter(|z| *z > 0).unwrap_or_else(|| die("request ZAT [--message TEXT]"));
+            let ua = zchan_tx::keys::unified_address(&ctx.wallet.shielded_address(0), ctx.net);
+            println!("{}", zchan_tx::keys::payment_uri(&ua, zat, a.get("message")));
+        }
         Some("shielded-address") => println!("{}", hex::encode(ctx.wallet.shielded_address(0).to_raw_address_bytes())),
         Some("send-shielded") => {
             let (to, amount) = match a.positional.as_slice() {
                 [to, amount] => (to, amount.parse::<u64>().unwrap_or_else(|e| die(e))),
-                _ => die("send-shielded IRONWOOD_ADDRESS_HEX ZAT"),
+                _ => die("send-shielded ADDRESS ZAT"),
             };
-            let to = zchan::payee::ironwood_address(to).unwrap_or_else(|| die("not a raw Ironwood address"));
+            let to = zchan::payee::ironwood_address(to)
+                .or_else(|| zchan_tx::keys::decode_unified(to).filter(|(net, _)| *net == ctx.net).map(|(_, a)| a))
+                .unwrap_or_else(|| die("not an Ironwood address on this network (raw hex, or a unified address)"));
             println!("{}", zchan::payer::send_shielded(&ctx, to, amount).await.unwrap_or_else(|e| die(e)));
         }
         Some("notes") => {
@@ -86,13 +98,13 @@ async fn main() {
             let proto = if a.flag("mpp") { Protocol::Mpp } else { Protocol::X402 };
             let method = reqwest::Method::from_bytes(a.str("method", "GET").as_bytes()).unwrap_or_else(|e| die(e));
             let body = a.get("body").map(|b| b.as_bytes().to_vec());
-            let f = agent.fetch(method, url, body, proto).await.unwrap_or_else(|e| die(e));
+            let f = agent.fetch_capped(method, url, body, proto, max_price(&a)).await.unwrap_or_else(|e| die(e));
             out(serde_json::to_value(&f).unwrap());
         }
         Some("pay-ref") => {
             let r = a.positional.first().unwrap_or_else(|| die("pay-ref INVOICE_URL"));
             let row: InvoiceRow = web::get(&ctx.http, r).await.unwrap_or_else(|e| die(e));
-            let ack = agent.pay_invoice(&row.invoice).await.unwrap_or_else(|e| die(e));
+            let ack = agent.pay_invoice_capped(&row.invoice, max_price(&a)).await.unwrap_or_else(|e| die(e));
             out(serde_json::to_value(&ack).unwrap());
         }
         Some("send") => {
@@ -126,8 +138,12 @@ async fn main() {
             let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
             axum::serve(l, zchan::agent::router(agent)).await.unwrap_or_else(|e| die(e));
         }
-        _ => die("command: deposit | shield | balance | notes | shielded-address | send-shielded | send | open | close | get | pay-ref | resume | status | watch | serve"),
+        _ => die("command: deposit | shield | balance | notes | shielded-address | request | send-shielded | send | open | close | get | pay-ref | resume | status | watch | serve"),
     }
+}
+
+fn max_price(a: &Args) -> Option<u64> {
+    a.get("max-price").map(|m| m.parse().unwrap_or_else(|_| die("--max-price ZAT")))
 }
 
 fn die(e: impl std::fmt::Display) -> ! {

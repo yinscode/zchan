@@ -82,6 +82,26 @@ pub fn decode_unified(s: &str) -> Option<(NetworkType, orchard::Address)> {
     })
 }
 
+/// A ZIP 321 payment request: `zcash:ADDRESS?amount=ZEC&message=TEXT`. Wallets that
+/// scan or open it fill in the address and amount; the message is shown, not sent.
+pub fn payment_uri(address: &str, zat: u64, message: Option<&str>) -> String {
+    let frac = format!("{:08}", zat % 100_000_000);
+    let frac = frac.trim_end_matches('0');
+    let amount = if frac.is_empty() { (zat / 100_000_000).to_string() } else { format!("{}.{frac}", zat / 100_000_000) };
+    let mut uri = format!("zcash:{address}?amount={amount}");
+    if let Some(m) = message.filter(|m| !m.is_empty()) {
+        uri.push_str("&message=");
+        for b in m.bytes() {
+            if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+                uri.push(b as char);
+            } else {
+                uri.push_str(&format!("%{b:02X}"));
+            }
+        }
+    }
+    uri
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,5 +114,12 @@ mod tests {
         assert!(ua.starts_with("utest1"), "{ua}");
         let (net, back) = decode_unified(&ua).unwrap();
         assert_eq!((net, back.to_raw_address_bytes()), (NetworkType::Test, a.to_raw_address_bytes()));
+    }
+
+    #[test]
+    fn payment_uris() {
+        assert_eq!(payment_uri("utest1x", 500_000, None), "zcash:utest1x?amount=0.005");
+        assert_eq!(payment_uri("utest1x", 100_000_000, Some("")), "zcash:utest1x?amount=1");
+        assert_eq!(payment_uri("utest1x", 123_456_789, Some("API budget & tips")), "zcash:utest1x?amount=1.23456789&message=API%20budget%20%26%20tips");
     }
 }

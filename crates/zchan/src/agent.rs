@@ -36,6 +36,14 @@ pub struct Agent {
     pub token: String,
 }
 
+/// Refuses a price above the caller's cap, before anything is quoted or signed.
+fn check_price(amount: u64, max_price: Option<u64>) -> Result<()> {
+    match max_price {
+        Some(max) if amount > max => Err(Error::Other(format!("price {amount} zat is above the cap of {max} zat; nothing was paid"))),
+        _ => Ok(()),
+    }
+}
+
 /// The result of an x402 request.
 #[derive(Debug, Serialize)]
 pub struct Fetched {
@@ -327,6 +335,19 @@ impl Agent {
     /// invoice and repeats the request with the merchant's acknowledgment, over `prefer`
     /// when offered, else the other protocol.
     pub async fn fetch(&self, method: reqwest::Method, url: &str, body: Option<Vec<u8>>, prefer: Protocol) -> Result<Fetched> {
+        self.fetch_capped(method, url, body, prefer, None).await
+    }
+
+    /// `fetch`, refusing before any quote or signature when the merchant's price is above
+    /// `max_price` zat. The solver's fee is bounded separately, by its published fee.
+    pub async fn fetch_capped(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        body: Option<Vec<u8>>,
+        prefer: Protocol,
+        max_price: Option<u64>,
+    ) -> Result<Fetched> {
         let t0 = std::time::Instant::now();
         let ms = |t: std::time::Instant| t.elapsed().as_millis() as u64;
         let mut trace = vec![json!({"step": "request", "method": method.as_str(), "url": url, "ms": 0})];
@@ -388,7 +409,7 @@ impl Agent {
             if c.expires.as_deref().and_then(mpp::parse_rfc3339).is_some_and(|e| now() > e) {
                 return Err(Error::Other("challenge expired".into()));
             }
-            let ack = self.pay_traced(&inv, &mut trace, t0).await?;
+            let ack = self.pay_traced(&inv, &mut trace, t0, max_price).await?;
             let cred = mpp::Credential { challenge: c, source: None, payload: mpp::Payload { ack: ack.clone() } };
             trace.push(json!({"step": "retry", "ms": ms(t0), "header": "Authorization", "value": format!("Payment {}…", &cred.header()[8..40])}));
             let r = send(Some(("authorization", cred.header()))).await?;
@@ -403,7 +424,7 @@ impl Agent {
         if req.extra.solver.trim_end_matches('/') != self.solver {
             return Err(Error::Other(format!("merchant pays through {}, not {}", req.extra.solver, self.solver)));
         }
-        let ack = self.pay_traced(&inv, &mut trace, t0).await?;
+        let ack = self.pay_traced(&inv, &mut trace, t0, max_price).await?;
         let pp = PaymentPayload {
             x402_version: x402::VERSION,
             resource: Some(pr.resource),
@@ -417,7 +438,8 @@ impl Agent {
     }
 
     /// Quote and pay, recording each step.
-    async fn pay_traced(&self, inv: &Signed<Invoice>, trace: &mut Vec<Value>, t0: std::time::Instant) -> Result<Signed<Ack>> {
+    async fn pay_traced(&self, inv: &Signed<Invoice>, trace: &mut Vec<Value>, t0: std::time::Instant, max_price: Option<u64>) -> Result<Signed<Ack>> {
+        check_price(inv.body.amount, max_price)?;
         let q = self.quote(inv).await?;
         trace.push(json!({
             "step": "quote", "ms": t0.elapsed().as_millis() as u64, "merchant": inv.body.merchant_id, "amount": q.body.amount,
@@ -431,6 +453,12 @@ impl Agent {
             "merchant_ack": {"merchant": ack.body.merchant_id, "invoice": ack.body.invoice_id, "merchant_channel_level": ack.body.cumulative},
         }));
         Ok(ack)
+    }
+
+    /// Pays a checkout invoice, refusing above `max_price` zat as `fetch_capped` does.
+    pub async fn pay_invoice_capped(&self, invoice: &Signed<Invoice>, max_price: Option<u64>) -> Result<Signed<Ack>> {
+        check_price(invoice.body.amount, max_price)?;
+        self.pay_invoice(invoice).await
     }
 
     /// Repeats a request with an x402 payment payload (for tests of replays and mismatches).
