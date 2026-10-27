@@ -14,16 +14,30 @@ Everything the submission asks for (repository, demo, description, two-minute vi
 
 ## Description (ready to paste)
 
-**zchan: payment channels for AI agents on Zcash**
+Under the form's 2,000-character limit (1975 characters). Paste the block as plain text.
 
-An agent funds one Zcash payment channel to a solver and pays any merchant through it. The solver keeps one channel to each merchant, and every agent's purchases from that merchant advance it. A payment is a newly signed channel state, not an on-chain transaction; settlement happens when a channel closes.
+```text
+Zchan: payment channels for AI agents on Zcash. Live on testnet: https://165-22-48-127.sslip.io
 
-- **Channels:** unidirectional (Spilman) channels on transparent Zcash v6 P2SH 2-of-2 outputs, built through pczt against a Zakura node. Each refund is signed by both sides before the funding transaction is signed. Payee closes, payer refunds, and a refusal of terms that cross a network upgrade are all built in.
-- **Payments over HTTP:** a local x402 v2 scheme, `zchannel`. The merchant answers 402 with a signed invoice. The agent signs its next state, and the solver pays the merchant on its own channel. The merchant's signed acknowledgment is the credential, and it is served once.
-- **At a counter:** a QR checkout that carries only an invoice reference, and a phone approval page on the buyer's own agent.
-- **Privacy:** channels can be funded from Ironwood notes and closed cooperatively with both sides paid to Ironwood. The chain then sees a channel's capacity and when it opened and closed, but not where the money came from, how it was split, or any payment in between.
-- **Reliability:** idempotent payment ids, credits when a merchant refuses, and recovery from a solver crash mid-payment or a merchant outage. Everything is persisted before it is acknowledged, and a ledger reconciles every channel.
+WHAT IT DOES
+An agent funds one channel to a solver and pays any merchant behind it. A payment is a newly signed channel state, not a transaction: 17 ms median, no block wait, 0 zat network fee. Services charge per request over x402 v2 or MPP, or put Zchan's proxy in front of an existing API. Two transactions settle any number of payments.
 
-**Proven on Zcash testnet** (blocks 4,524,435–4,524,506): 4 channels; 3 x402 purchases and 1 QR checkout; one cooperative close to Ironwood; three transparent closes; and a watcher-broadcast refund. All txids are in `docs/testnet.md`. A regtest end-to-end suite runs the real binaries and covers every failure path.
+WHY IT DOES NOT LEAK
+Channels are funded from Ironwood shielded notes and closed cooperatively with both sides paid back to Ironwood. The chain sees a channel's size and when it opened and closed. It does not see where the funds came from, how they were split, or any payment in between. Each merchant sees only its own payments, and the solver never sees response content.
 
-**Honest limits:** the two legs are not atomic. The solver is trusted with one payment per agent at a time and sees which agent paid which merchant. Refunds and unilateral closes are transparent. Mainnet is disabled in code.
+WHY FUNDS ARE SAFE
+Spilman channels on a v6 P2SH 2-of-2. The refund is signed before the funding transaction, so if the solver disappears the agent's watcher takes the balance back at the lock height.
+
+REAL
+- Every shield-in, open and close in the playground is a Zcash testnet transaction, with its txid and block shown on the page.
+- Channel signing, pczt builds, Ironwood proofs, crash recovery, idempotent payments, ledger reconciliation.
+- A watcher-broadcast refund, transparent closes and shielded closes, all exercised on testnet (docs/testnet.md).
+
+MOCK OR SIMPLIFIED
+- The three merchants return demo JSON, and the proxy target is a small stub API. The payments for them are real channel states.
+- The playground server holds each visitor's agent keys so you can try it without installing. A real agent keeps its own seed.
+- A house wallet grants each session 160,000 testnet zat.
+
+LIMITS
+The agent and merchant legs are not atomic yet, so the solver is trusted with one payment in flight per agent (hash locks are planned). The solver sees which agent paid which merchant. Refunds and unilateral closes are transparent. Mainnet is disabled in code.
+```
