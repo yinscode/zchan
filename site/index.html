@@ -169,15 +169,41 @@ details.menu .panel a:hover { background: var(--card); }
 .lab .note { padding: 16px 22px; font-size: 14px; color: var(--fg2); }
 
 /* Topology */
-.topo { background: var(--pine); border: 1px solid var(--line); border-radius: 12px; padding: 24px; overflow-x: auto; }
-.topo svg { display: block; width: 100%; min-width: 640px; height: auto; }
-.topo .t { font: 13px var(--mono); fill: var(--fg); }
+.topo { background: var(--pine); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.topo-fig { padding: 24px 24px 4px; }
+.topo svg { display: block; width: 100%; height: auto; }
+.topo svg.tall { display: none; max-width: 420px; margin: 0 auto; }
+.topo .h { font: 500 11px var(--mono); letter-spacing: .08em; fill: var(--sage); }
+.topo .t { font: 500 14px var(--mono); fill: var(--fg); }
+.topo .tall .t { font-size: 13px; }
+.topo .s { font: 12px var(--mono); fill: var(--fg2); font-variant-numeric: tabular-nums; }
+.topo .tall .s { font-size: 11px; }
+.topo .s .v { fill: var(--fg); }
 .topo .d { font: 12px var(--mono); fill: var(--sage); }
-.topo .box { fill: var(--bg); stroke: var(--line-hi); }
+.topo .box { fill: var(--bg); stroke: var(--line-hi); transition: stroke .2s; }
+.topo .box.live { stroke: var(--gold); }
 .topo .core { fill: var(--fg); }
-.topo .core-t { font: 500 14px var(--mono); fill: var(--bg); }
-.topo .edge { stroke: var(--line-hi); stroke-width: 1.5; fill: none; }
-.topo .pay { fill: var(--gold); }
+.topo .core-t { font: 600 15px var(--mono); fill: var(--bg); }
+.topo .core-s { font: 12px var(--mono); fill: var(--bg); opacity: .72; }
+.topo .edge { stroke: var(--line-hi); stroke-width: 1.5; fill: none; transition: stroke .2s; }
+.topo .edge.live { stroke: var(--gold); stroke-width: 2; }
+.topo .dot { fill: var(--gold); opacity: 0; }
+.topo-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px 18px; flex-wrap: wrap; }
+.topo-log { margin: 0; font: 13px/1.5 var(--mono); color: var(--fg2); min-width: 0; }
+.topo-log b { color: var(--gold-text); font-weight: 500; }
+.topo-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.topo-facts div { background: var(--pine); padding: 18px 24px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.topo-facts b { font: 480 30px/1 var(--sans); letter-spacing: -0.04em; color: var(--fg); }
+.topo-facts span { font-size: 14px; line-height: 1.5; color: var(--fg2); }
+@media (max-width: 700px) {
+  .topo svg.wide { display: none; }
+  .topo svg.tall { display: block; }
+  .topo-fig { padding: 18px 12px 0; }
+  .topo-foot, .topo-facts div { padding-inline: 16px; }
+  .topo-facts { grid-template-columns: minmax(0, 1fr); }
+  .topo-facts div { grid-template-columns: 44px minmax(0, 1fr); align-items: baseline; gap: 10px; padding-block: 14px; }
+  .topo-facts b { font-size: 24px; }
+}
 
 /* Entry paths */
 .paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
@@ -440,22 +466,54 @@ footer .base { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--
         <h2>Every agent reaches every service through one solver.</h2>
         <p>Each agent opens one channel, to the solver. The solver keeps one channel to each service and pays it as agents buy. No agent needs a channel per seller.</p>
       </div>
-      <div class="topo" role="img" aria-label="Agents A, B and C each hold one channel to the solver; the solver holds one channel to each service: weather, search and inference.">
-        <svg viewBox="0 0 960 250" xmlns="http://www.w3.org/2000/svg">
-          <path class="edge" d="M170 45 C 300 45, 330 125, 420 125"/><path class="edge" d="M170 125 L 420 125"/><path class="edge" d="M170 205 C 300 205, 330 125, 420 125"/>
-          <path class="edge" d="M540 125 C 630 125, 660 45, 790 45"/><path class="edge" d="M540 125 L 790 125"/><path class="edge" d="M540 125 C 630 125, 660 205, 790 205"/>
-          <circle class="pay" cx="300" cy="72" r="4"/><circle class="pay" cx="300" cy="125" r="4"/><circle class="pay" cx="300" cy="178" r="4"/>
-          <circle class="pay" cx="660" cy="72" r="4"/><circle class="pay" cx="660" cy="125" r="4"/><circle class="pay" cx="660" cy="178" r="4"/>
-          <rect class="box" x="40" y="27" width="130" height="36" rx="8"/><text class="t" x="105" y="50" text-anchor="middle">agent A</text>
-          <rect class="box" x="40" y="107" width="130" height="36" rx="8"/><text class="t" x="105" y="130" text-anchor="middle">agent B</text>
-          <rect class="box" x="40" y="187" width="130" height="36" rx="8"/><text class="t" x="105" y="210" text-anchor="middle">agent C</text>
-          <rect class="core" x="420" y="98" width="120" height="54" rx="10"/><text class="core-t" x="480" y="130" text-anchor="middle">solver</text>
-          <rect class="box" x="790" y="27" width="130" height="36" rx="8"/><text class="t" x="855" y="50" text-anchor="middle">weather</text>
-          <rect class="box" x="790" y="107" width="130" height="36" rx="8"/><text class="t" x="855" y="130" text-anchor="middle">search</text>
-          <rect class="box" x="790" y="187" width="130" height="36" rx="8"/><text class="t" x="855" y="210" text-anchor="middle">inference</text>
-          <text class="d" x="295" y="244" text-anchor="middle">one channel each · agent pays</text>
-          <text class="d" x="665" y="244" text-anchor="middle">one channel per service · solver pays</text>
+      <div class="topo">
+        <div class="topo-fig" role="img" aria-label="Agents A, B and C each hold one channel to the solver. The solver holds one channel to each service: weather, search and inference. A purchase moves a signed state along the agent's channel, then along the service's channel.">
+        <svg class="wide" viewBox="0 0 1000 330" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <text class="h" x="40" y="24">AGENTS</text><text class="h" x="500" y="24" text-anchor="middle">SOLVER</text><text class="h" x="960" y="24" text-anchor="end">SERVICES</text>
+          <path class="edge" data-e="A" d="M210 70 C 320 70, 320 160, 425 160"/>
+          <path class="edge" data-e="B" d="M210 160 C 320 160, 320 160, 425 160"/>
+          <path class="edge" data-e="C" d="M210 250 C 320 250, 320 160, 425 160"/>
+          <path class="edge" data-e="weather" d="M575 160 C 680 160, 680 70, 790 70"/>
+          <path class="edge" data-e="search" d="M575 160 C 680 160, 680 160, 790 160"/>
+          <path class="edge" data-e="inference" d="M575 160 C 680 160, 680 250, 790 250"/>
+          <rect class="box" data-b="A" x="40" y="38" width="170" height="64" rx="8"/><text class="t" x="58" y="64">agent A</text><text class="s" x="58" y="86">paid <tspan class="v" data-k="A">0</tspan> zat</text>
+          <rect class="box" data-b="B" x="40" y="128" width="170" height="64" rx="8"/><text class="t" x="58" y="154">agent B</text><text class="s" x="58" y="176">paid <tspan class="v" data-k="B">0</tspan> zat</text>
+          <rect class="box" data-b="C" x="40" y="218" width="170" height="64" rx="8"/><text class="t" x="58" y="244">agent C</text><text class="s" x="58" y="266">paid <tspan class="v" data-k="C">0</tspan> zat</text>
+          <rect class="box" data-b="weather" x="790" y="38" width="170" height="64" rx="8"/><text class="t" x="808" y="64">weather</text><text class="d" x="942" y="64" text-anchor="end">5,000</text><text class="s" x="808" y="86">got <tspan class="v" data-k="weather">0</tspan> zat</text>
+          <rect class="box" data-b="search" x="790" y="128" width="170" height="64" rx="8"/><text class="t" x="808" y="154">search</text><text class="d" x="942" y="154" text-anchor="end">3,000</text><text class="s" x="808" y="176">got <tspan class="v" data-k="search">0</tspan> zat</text>
+          <rect class="box" data-b="inference" x="790" y="218" width="170" height="64" rx="8"/><text class="t" x="808" y="244">inference</text><text class="d" x="942" y="244" text-anchor="end">4,000</text><text class="s" x="808" y="266">got <tspan class="v" data-k="inference">0</tspan> zat</text>
+          <rect class="core" x="425" y="120" width="150" height="80" rx="10"/><text class="core-t" x="500" y="156" text-anchor="middle">solver</text><text class="core-s" x="500" y="178" text-anchor="middle">fee 100 zat</text>
+          <text class="d" x="317" y="318" text-anchor="middle">agent channels · the agent pays</text><text class="d" x="683" y="318" text-anchor="middle">service channels · the solver pays</text>
+          <circle class="dot" r="5" cx="0" cy="0"/>
         </svg>
+        <svg class="tall" viewBox="0 0 360 490" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <text class="h" x="8" y="14">AGENTS · EACH PAYS THE SOLVER</text>
+          <path class="edge" data-e="A" d="M62 84 C 62 150, 180 150, 180 210"/>
+          <path class="edge" data-e="B" d="M180 84 C 180 150, 180 150, 180 210"/>
+          <path class="edge" data-e="C" d="M298 84 C 298 150, 180 150, 180 210"/>
+          <path class="edge" data-e="weather" d="M180 274 C 180 334, 62 334, 62 400"/>
+          <path class="edge" data-e="search" d="M180 274 C 180 334, 180 334, 180 400"/>
+          <path class="edge" data-e="inference" d="M180 274 C 180 334, 298 334, 298 400"/>
+          <rect class="box" data-b="A" x="10" y="28" width="104" height="56" rx="8"/><text class="t" x="62" y="52" text-anchor="middle">agent A</text><text class="s" x="62" y="71" text-anchor="middle">paid <tspan class="v" data-k="A">0</tspan></text>
+          <rect class="box" data-b="B" x="128" y="28" width="104" height="56" rx="8"/><text class="t" x="180" y="52" text-anchor="middle">agent B</text><text class="s" x="180" y="71" text-anchor="middle">paid <tspan class="v" data-k="B">0</tspan></text>
+          <rect class="box" data-b="C" x="246" y="28" width="104" height="56" rx="8"/><text class="t" x="298" y="52" text-anchor="middle">agent C</text><text class="s" x="298" y="71" text-anchor="middle">paid <tspan class="v" data-k="C">0</tspan></text>
+          <rect class="box" data-b="weather" x="10" y="400" width="104" height="56" rx="8"/><text class="t" x="62" y="424" text-anchor="middle">weather</text><text class="s" x="62" y="443" text-anchor="middle">got <tspan class="v" data-k="weather">0</tspan></text>
+          <rect class="box" data-b="search" x="128" y="400" width="104" height="56" rx="8"/><text class="t" x="180" y="424" text-anchor="middle">search</text><text class="s" x="180" y="443" text-anchor="middle">got <tspan class="v" data-k="search">0</tspan></text>
+          <rect class="box" data-b="inference" x="246" y="400" width="104" height="56" rx="8"/><text class="t" x="298" y="424" text-anchor="middle">inference</text><text class="s" x="298" y="443" text-anchor="middle">got <tspan class="v" data-k="inference">0</tspan></text>
+          <rect class="core" x="110" y="210" width="140" height="64" rx="10"/><text class="core-t" x="180" y="239" text-anchor="middle">solver</text><text class="core-s" x="180" y="259" text-anchor="middle">fee 100 zat</text>
+          <text class="h" x="8" y="480">SERVICES · THE SOLVER PAYS EACH</text>
+          <circle class="dot" r="5" cx="0" cy="0"/>
+        </svg>
+        </div>
+        <div class="topo-foot">
+          <p class="topo-log" id="topo-log">Six purchases, three agents, three services, one solver.</p>
+          <button class="btn sm" type="button" id="topo-play">Play</button>
+        </div>
+        <div class="topo-facts">
+          <div><b>6</b><span>channels for 3 agents and 3 services, not 9. N + M, not N × M.</span></div>
+          <div><b>2</b><span>on-chain transactions per channel: open and close.</span></div>
+          <div><b>0</b><span>on-chain transactions per payment. Each one is a signed state.</span></div>
+        </div>
       </div>
     </div>
   </section>
@@ -756,5 +814,52 @@ zchan-agent get https://api.example/api/search?q=zec</pre>
     draw();
   });
   draw();
+  // Topology: each purchase moves a signed state along the agent's channel, then the service's.
+  var topo = document.querySelector('.topo'), tlog = $('topo-log'), tplay = $('topo-play');
+  var BUYS = [['A', 'search', 3000], ['B', 'weather', 5000], ['C', 'inference', 4000], ['A', 'inference', 4000], ['B', 'search', 3000], ['C', 'weather', 5000]];
+  var SFEE = 100, still = matchMedia('(prefers-reduced-motion: reduce)').matches, running = false, played = false;
+  function each(sel, f) { topo.querySelectorAll(sel).forEach(f); }
+  function setv(k, n) { each('[data-k="' + k + '"]', function (e) { e.textContent = fmt(n); }); }
+  function lit(keys, on) { keys.forEach(function (k) { each('[data-e="' + k + '"],[data-b="' + k + '"]', function (e) { e.classList.toggle('live', on); }); }); }
+  function travel(k, ms, done) {
+    if (still) return setTimeout(done, ms);
+    var legs = [];
+    topo.querySelectorAll('svg').forEach(function (svg) { if (!svg.getBoundingClientRect().width) return; var p = svg.querySelector('[data-e="' + k + '"]'); legs.push({ p: p, len: p.getTotalLength(), dot: svg.querySelector('.dot') }); });
+    var t0 = performance.now();
+    (function frame(now) {
+      var f = Math.min(1, (now - t0) / ms), e = f < .5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+      legs.forEach(function (l) { var pt = l.p.getPointAtLength(l.len * e); l.dot.setAttribute('cx', pt.x); l.dot.setAttribute('cy', pt.y); l.dot.style.opacity = 1; });
+      if (f < 1) requestAnimationFrame(frame); else done();
+    })(t0);
+  }
+  function play() {
+    if (running) return;
+    running = played = true; tplay.disabled = true;
+    var paid = { A: 0, B: 0, C: 0 }, got = { weather: 0, search: 0, inference: 0 }, i = 0, total = 0;
+    Object.keys(paid).concat(Object.keys(got)).forEach(function (k) { setv(k, 0); });
+    (function next() {
+      if (i === BUYS.length) {
+        running = false; tplay.disabled = false; tplay.textContent = 'Replay';
+        each('.dot', function (d) { d.style.opacity = 0; });
+        tlog.innerHTML = 'Six payments, no transactions: services got <b>' + fmt(total) + ' zat</b>, the solver kept ' + fmt(BUYS.length * SFEE) + '. Each channel settles when it closes.';
+        return;
+      }
+      var b = BUYS[i++], ag = b[0], sv = b[1], amt = b[2];
+      tlog.innerHTML = 'agent ' + ag + ' buys ' + sv + ' · signs a state for <b>' + fmt(amt + SFEE) + ' zat</b> more';
+      lit([ag], true);
+      travel(ag, 650, function () {
+        paid[ag] += amt + SFEE; setv(ag, paid[ag]); lit([ag], false); lit([sv], true);
+        tlog.innerHTML = 'solver keeps 100 zat · signs a state for <b>' + fmt(amt) + ' zat</b> more to ' + sv;
+        travel(sv, 650, function () {
+          got[sv] += amt; total += amt; setv(sv, got[sv]);
+          setTimeout(function () { lit([sv], false); next(); }, still ? 500 : 450);
+        });
+      });
+    })();
+  }
+  tplay.addEventListener('click', play);
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (es, o) { es.forEach(function (e) { if (e.isIntersecting && !played) { o.disconnect(); setTimeout(play, 300); } }); }, { threshold: 0.5 }).observe(topo);
+  }
 })();
 </script>
