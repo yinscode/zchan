@@ -2,6 +2,12 @@
 
 How an agent gets a budget from a person, pays for resources within it, and gives back what is left. An agent can use the `zchan-agent` command line, or the same wallet as an MCP server for assistants that call tools. The last section is a set of instructions to give an agent that uses the command line.
 
+Install the command after `rustup update stable` (tested with Rust 1.97.1):
+
+```bash
+cargo install --locked --git https://github.com/yinscode/zchan zchan --bin zchan-agent
+```
+
 Every command takes the agent's data directory, the node and the solver:
 
 ```bash

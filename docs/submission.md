@@ -1,43 +1,50 @@
 # Zecathon submission
 
-Everything the submission asks for (repository, demo, description, two-minute video) is ready. The submission itself is made from your Zecathon account.
+The repository, demo and description are ready; the video needs re-recording. The submission itself is made from your Zecathon account.
 
 ## Checklist
 
 | Item | Where |
 |---|---|
-| Repository | this repo (push it to a public remote first; there is no remote yet) |
-| Demo | `scripts/demo.sh` (regtest), `NETWORK=testnet ZCHAN_NODE_URL=… scripts/demo.sh` (testnet) |
+| Repository | https://github.com/yinscode/zchan |
+| Demo | https://zchan.cash/play (hosted on testnet, no install); `scripts/demo.sh` runs the stack locally on regtest |
 | Testnet evidence | `docs/testnet.md`, `docs/spikes/testnet-run.json` |
-| Two-minute video | `video/testnet/zchan-demo-testnet.mp4` (recorded from the live testnet run; not in git, upload it) |
+| Two-minute video | `video/testnet/zchan-demo-testnet.mp4` (not in git, upload it); it predates MPP, proxy mode, shielded closes and MCP, so re-record before submitting |
 | Description | below |
 
 ## Description (ready to paste)
 
-Under the form's 2,000-character limit (1975 characters). Paste the block as plain text.
+1,969 characters, under the form's 2,000-character limit even if line breaks count as two (1,998). Paste the block as plain text.
 
 ```text
-Zchan: payment channels for AI agents on Zcash. Live on testnet: https://zchan.cash
+# Zchan
 
-WHAT IT DOES
-An agent funds one channel to a solver and pays any merchant behind it. A payment is a newly signed channel state, not a transaction: 17 ms median, no block wait, 0 zat network fee. Services charge per request over x402 v2 or MPP, or put Zchan's proxy in front of an existing API. Two transactions settle any number of payments.
+Payment channels on Zcash for x402 and MPP: fast payments for agents and people.
+Demo: https://zchan.cash/play
+Code: https://github.com/yinscode/zchan
 
-WHY IT DOES NOT LEAK
-Channels are funded from Ironwood shielded notes and closed cooperatively with both sides paid back to Ironwood. The chain sees a channel's size and when it opened and closed. It does not see where the funds came from, how they were split, or any payment in between. Each merchant sees only its own payments, and the solver never sees response content.
+## What it does
 
-WHY FUNDS ARE SAFE
-Spilman channels on a v6 P2SH 2-of-2. The refund is signed before the funding transaction, so if the solver disappears the agent's watcher takes the balance back at the lock height.
+An agent or user funds one channel to a solver and pays any merchant behind it. A payment is a newly signed channel state, not a transaction: 17 ms median, no block wait, no per-payment fee. Services charge via x402 v2 or MPP, or put Zchan's proxy in front of an existing API. Two transactions carry any number of payments. Agents pay from a CLI or MCP server, under a price cap and budget the model cannot raise.
 
-REAL
-- Every shield-in, open and close in the playground is a Zcash testnet transaction, with its txid and block shown on the page.
-- Channel signing, pczt builds, Ironwood proofs, crash recovery, idempotent payments, ledger reconciliation.
-- A watcher-broadcast refund, transparent closes and shielded closes, all exercised on testnet (docs/testnet.md).
+## What stays private
 
-MOCK OR SIMPLIFIED
-- The three merchants return demo JSON, and the proxy target is a small stub API. The payments for them are real channel states.
-- The playground server holds each visitor's agent keys so you can try it without installing. A real agent keeps its own seed.
-- A house wallet grants each session 160,000 testnet zat.
+Channels are funded from Ironwood shielded notes and can close cooperatively with both sides paid to shielded addresses. The chain sees a channel's capacity and when it opened and closed, not the source of funds, the split, individual payments, or which merchant was paid. The solver sees route, amount and resource, but not response content.
 
-LIMITS
-The agent and merchant legs are not atomic yet, so the solver is trusted with one payment in flight per agent (hash locks are planned). The solver sees which agent paid which merchant. Refunds and unilateral closes are transparent. Mainnet is disabled in code.
+## How funds are protected
+
+Spilman channels on a v6 P2SH 2-of-2. The solver signs a time-locked refund before the channel is funded. If the solver disappears, the agent's watcher recovers the balance at the lock height.
+
+## Real on testnet
+
+- Every shield-in, open and close in the Playground is a real testnet transaction, shown with its ID.
+- PCZT construction, Ironwood proofs, watcher refunds and shielded closes are exercised on testnet. Crash recovery and idempotency are tested end to end.
+
+## Demo simplifications
+
+Merchants return demo JSON and the proxy targets a stub API; the payments are real. The Playground runs each visitor's agent server-side. A house wallet grants each session 160,000 testnet zat.
+
+## Current limits
+
+The agent and merchant legs are not yet atomic: until hash locks land, the solver is trusted with at most one payment in flight per agent. The solver sees which agent paid which merchant. Refunds and unilateral closes are transparent. Mainnet waits for a security review.
 ```

@@ -9,6 +9,8 @@ agent-2 ──channel──▶ │ solver │ ──channel──▶ merchant-b
 
 Each channel is a unidirectional (Spilman) channel on a transparent Zcash v6 P2SH 2-of-2 output. Its time-locked refund is signed by both sides before the funding transaction is signed. Closes are enforced by the chain; the solver is trusted with one payment per agent at a time; the two legs are not atomic. Funded from Ironwood notes and closed cooperatively, a channel shows the chain only its capacity and its open and close ([docs/privacy.md](docs/privacy.md)). Read [docs/design.md](docs/design.md) for the flow and the full trust model.
 
+**Try it:** [zchan.cash/play](https://zchan.cash/play) (Zcash testnet, no install) · **Docs:** [zchan.cash/docs](https://zchan.cash/docs/) · **Install:** `cargo install --locked --git https://github.com/yinscode/zchan zchan --bins`
+
 ## Status
 
 | | |

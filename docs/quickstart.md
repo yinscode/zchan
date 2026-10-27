@@ -12,9 +12,23 @@ Open the [Zchan Playground](https://zchan.cash/play). You get an agent of your o
 
 Opening and closing wait for testnet blocks. Payments don't.
 
+## Install
+
+The source is at [github.com/yinscode/zchan](https://github.com/yinscode/zchan). To install just the agent and merchant commands, update Rust first (`rustup update stable`; tested with 1.97.1):
+
+```bash
+cargo install --locked --git https://github.com/yinscode/zchan zchan --bin zchan-agent --bin zchan-merchant
+```
+
+They land in `~/.cargo/bin`. There are no prebuilt binaries yet.
+
 ## 2. Run the whole stack locally
 
-Needs Rust 1.97.1 (pinned by `rust-toolchain.toml`), Docker for the regtest node, `python3` and `openssl`.
+Needs Rust 1.97.1 (pinned by `rust-toolchain.toml`), Docker for the regtest node, `python3` and `openssl`. Clone the repository and build every service:
+
+```bash
+git clone https://github.com/yinscode/zchan && cd zchan
+```
 
 ```bash
 cargo build --release
