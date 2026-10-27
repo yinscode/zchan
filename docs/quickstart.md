@@ -71,20 +71,48 @@ The other agent commands (`balance`, `shield`, `status`, `watch`, `serve` and mo
 
 ## 4. Put your API behind payment
 
-Proxy mode needs no change to your service:
+Proxy mode needs no change to your service. Take an ordinary Express API with no payment code:
+
+```js
+// server.js
+import express from "express";
+const app = express();
+
+app.get("/api/forecast", (req, res) => {
+  res.json({ city: req.query.city, tempC: 21, sky: "clear" });
+});
+
+app.get("/health", (req, res) => res.send("ok"));
+
+app.listen(3000);
+```
+
+Put `zchan-merchant` in front of it and price the route:
 
 ```bash
-zchan-merchant --name my-api --upstream http://localhost:3000 \
-  --routes '/api/search=3000,/api/*=500' \
-  --solver http://127.0.0.1:7100 --data .demo/regtest/my-api \
+zchan-merchant --name forecast-api --upstream http://localhost:3000 \
+  --routes '/api/forecast=2000' \
+  --solver http://127.0.0.1:7100 --data .demo/regtest/forecast-api \
   --node http://127.0.0.1:18272/ --listen 127.0.0.1:7205 --admin-token "$TOKEN"
 ```
 
-- **Prices:** per path in zatoshis. `/api/*` matches by prefix; unpriced paths pass through free.
-- **Requests:** your service sees them without payment headers.
+Clients call port 7205 instead of 3000:
+- **`/api/forecast`** answers 402 with a 2,000 zat invoice, offered over x402 v2 and MPP. Once it is paid, the request goes on to Express.
+- **`/health`** has no price, so it passes straight through.
+
+An agent pays and fetches it in one step:
+
+```bash
+target/release/zchan-agent get 'http://127.0.0.1:7205/api/forecast?city=Lisbon' --max-price 5000 $A
+```
+
+- **Prices:** per path in zatoshis. A route ending in `*` matches by prefix, as in `/api/*=500`. Query strings do not change the price.
+- **Requests:** Express sees them without payment headers.
 - **Errors:** an upstream 5xx releases the invoice, so the client can retry.
 
-The solver opens a channel to the new merchant when asked (`POST /admin/merchants` with the admin token; [Run the demo](#demo) shows the call).
+The solver opens a channel to the new merchant when asked (`POST /admin/merchants` with the admin token; [Run the demo](#demo) shows the call). Until then, the merchant has no channel to be paid on.
+
+Calling Zchan from inside your own server, as middleware, needs a client library. The TypeScript and Python clients are planned; until then, proxy mode is the way in.
 
 ## Next
 
