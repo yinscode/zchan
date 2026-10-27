@@ -532,6 +532,7 @@ footer .base { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--
             <li><span>One channel pays every service behind the solver, with no account or API key per seller.</span></li>
             <li><span>The channel's capacity is a spending cap the agent cannot exceed.</span></li>
             <li><span>Speaks x402 v2 and MPP, whichever the service offers.</span></li>
+            <li><span>Works from the command line, or as an MCP server any assistant can call, with a price cap and budget the model cannot raise.</span></li>
           </ul>
           <div class="cmd"><span class="p">$</span><code id="c-open">zchan-agent open --capacity 100000 --shielded</code><button class="copy" data-copy="c-open" aria-label="Copy command">Copy</button></div>
         </div>
@@ -717,8 +718,8 @@ zchan-agent get https://api.example/api/search?q=zec</pre>
         <h2>Live on testnet. Mainnet waits for review.</h2>
       </div>
       <div class="stages">
-        <div class="stg live"><i></i><span class="label">Live on testnet</span><ul><li>Channels and solver</li><li>x402 and MPP</li><li>Proxy mode and QR checkout</li><li>Shielded funding and closes</li></ul></div>
-        <div class="stg next"><i></i><span class="label">Next</span><ul><li>TypeScript and Python SDKs</li><li>An MCP payment tool</li><li>USD prices</li></ul></div>
+        <div class="stg live"><i></i><span class="label">Live on testnet</span><ul><li>Channels and solver</li><li>x402 and MPP</li><li>Proxy mode and QR checkout</li><li>Shielded funding and closes</li><li>An MCP server for assistants</li></ul></div>
+        <div class="stg next"><i></i><span class="label">Next</span><ul><li>TypeScript and Python SDKs</li><li>USD prices</li><li>Channel top-ups</li></ul></div>
         <div class="stg"><i></i><span class="label">Before mainnet</span><ul><li>External code review</li><li>Key-handling review</li><li>Legal review</li></ul></div>
       </div>
       <a class="more" href="https://165-22-48-127.sslip.io/status/">Network status →</a>

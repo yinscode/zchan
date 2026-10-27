@@ -97,3 +97,17 @@ sudo -u zchan /opt/zchan/bin/zchan-agent send-shielded \
   "$(sudo -u zchan /opt/zchan/bin/zchan-agent shielded-address --data /var/lib/zchan/playground/house)" 2000000 \
   --data /var/lib/zchan/solver --node http://127.0.0.1:18232/
 ```
+
+**Renewing merchant channels.** Each channel from the solver to a merchant has a lock height, and the merchant closes it shortly before. After that, payments to that merchant fail with `merchant … has no open channel`. Check the lock heights, then register each merchant again to open a new channel:
+
+```bash
+curl -s localhost:7100/status.json | python3 -c 'import json,sys; [print(c["peer_id"], c["status"], c["terms"]["lock_height"]) for c in json.load(sys.stdin)["merchant_channels"] if c["status"] != "closed"]'
+```
+
+```bash
+. /etc/zchan/env
+curl -s -X POST localhost:7100/admin/merchants -H "X-Admin-Token: $ZCHAN_ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"url":"http://127.0.0.1:7201","capacity":1000000,"lock_blocks":40000,"shielded":true}'
+```
+
+At testnet's recent pace of about 25 seconds a block, 40,000 blocks is about 11 days.

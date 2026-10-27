@@ -32,6 +32,20 @@ Everything that runs on regtest runs on testnet unchanged. Only the node, the fu
 | Four payments: weather (x402), news (MPP), proxied search (x402), proxied POST echo (MPP) | none | — | 17–35 ms each through the tunnel; agent level 14,400 |
 | Shield out (agent-started cooperative close) | `c0919962129a3816f574bbdc7ae4158d18cc105e7a2320d990dd5207760fc1b6` | 4,544,097 | transparent in 1, **out none**; 80,000 into Ironwood; the agent's 75,600 zat change found with its own key |
 
+## An assistant's wallet over MCP on testnet (blocks 4,548,301–4,548,333)
+
+`zchan-agent mcp --max-price 5000 --budget 20000` on the hosted droplet, driven over stdio by a scripted MCP client with the same calls an assistant makes. The hosted merchants' channels had reached their lock heights, so the solver opened new ones with 40,000-block locks first.
+
+| Step | Txid | Height | On chain |
+|---|---|---|---|
+| Fund the agent (house → agent, 100,000 zat, `zchan_request_funds` amount) | `60aed7b47b5403aa2637dbf6d6e3c725e653dc1618a63cbdc00cda2b6bc1a4b1` | 4,548,301 | transparent in 0, out 0 |
+| `zchan_open`, capacity 60,000 | `3146a64889d985edfbb433cc8fd9d9d184a23805c01a67fdc04b9d235c113b30` | 4,548,307 | transparent in 0; channel output |
+| solver → merchant-a, -b, -d channels (1,000,000 each, shielded funding) | `64fa589b…`, `9200a4fa…`, `3e590781…` | 4,548,315–4,548,325 | transparent in 0; channel output |
+| `zchan_fetch` ×4: search (x402) 3,100, weather 5,100, echo (MPP POST) 2,100, weather 5,100 | none | — | 15,400 zat including solver fees |
+| `zchan_fetch` with `max_price: 1000` on a 3,000 zat search | none | — | refused before any quote |
+| `zchan_fetch` ×2 with 4,600 of the budget left | none | — | refused: the cap fell to 4,500 |
+| `zchan_close` | `ea64f2bfdff837dfcac6624b36f8cfda906541cfab7775a954e289f7de9b2ab3` | 4,548,333 | transparent in 1, **out none** |
+
 ## Agent-initiated shielded close on testnet (blocks 4,526,607–4,526,623)
 
 Agent-1 funded a channel from notes, made one payment, and closed it cooperatively. It asked the solver for a close offer, checked that the offer paid its own change to its Ironwood address at its own signed level, and co-signed. Merchant-a then closed its channel the same way. Both closes spend only the channel output and have **no transparent outputs**. The record is in [spikes/testnet-agent-close.json](spikes/testnet-agent-close.json).

@@ -16,6 +16,7 @@ pub mod args;
 pub mod channel;
 pub mod ctx;
 pub mod gate;
+pub mod mcp;
 pub mod merchant;
 pub mod mpp;
 pub mod payee;

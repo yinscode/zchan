@@ -25,6 +25,9 @@
 //! zchan-agent status
 //! zchan-agent watch                           refund watcher: broadcasts refunds when due
 //! zchan-agent serve --listen HOST:PORT        approval page for QR checkout + refund watcher
+//! zchan-agent mcp [--max-price ZAT] [--budget ZAT] [--lock-blocks N]
+//!                                             an MCP server on stdio for assistants, with the
+//!                                             refund watcher; caps default to 5,000 and 50,000
 //! ```
 
 use std::sync::Arc;
@@ -131,6 +134,15 @@ async fn main() {
             out(serde_json::json!({"deposit": ctx.deposit_address(), "channels": chans, "payments": pays}));
         }
         Some("watch") => zchan::agent::run(agent).await,
+        Some("mcp") => {
+            let limits = zchan::mcp::Limits {
+                max_price: a.num("max-price", 5_000),
+                budget: a.num("budget", 50_000),
+                lock_blocks: a.num("lock-blocks", 2_000),
+            };
+            tokio::spawn(zchan::agent::run(agent.clone()));
+            zchan::mcp::serve(agent, limits).await.unwrap_or_else(|e| die(e));
+        }
         Some("serve") => {
             let base = a.str("url", &format!("http://{listen}"));
             eprintln!("zchan-agent approval page: {base}/t/{}/", agent.token);
@@ -138,7 +150,7 @@ async fn main() {
             let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
             axum::serve(l, zchan::agent::router(agent)).await.unwrap_or_else(|e| die(e));
         }
-        _ => die("command: deposit | shield | balance | notes | shielded-address | request | send-shielded | send | open | close | get | pay-ref | resume | status | watch | serve"),
+        _ => die("command: deposit | shield | balance | notes | shielded-address | request | send-shielded | send | open | close | get | pay-ref | resume | status | watch | serve | mcp"),
     }
 }
 

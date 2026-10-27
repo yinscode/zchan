@@ -1,6 +1,6 @@
 # Agents
 
-How an agent gets a budget from a person, pays for resources within it, and gives back what is left. The last section is a set of instructions to give the agent itself.
+How an agent gets a budget from a person, pays for resources within it, and gives back what is left. An agent can use the `zchan-agent` command line, or the same wallet as an MCP server for assistants that call tools. The last section is a set of instructions to give an agent that uses the command line.
 
 Every command takes the agent's data directory, the node and the solver:
 
@@ -71,6 +71,44 @@ zchan-agent send-shielded utest1… 480000 $A
 ```
 
 A channel cannot be topped up. When it runs low, close it and open a new one.
+
+## From an assistant (MCP)
+
+`zchan-agent mcp` serves the same wallet as an MCP server over stdio. Assistants that call tools, such as Claude Code, Claude Desktop and Cursor, can then pay without a shell. Add it to Claude Code:
+
+```bash
+claude mcp add zchan -- zchan-agent mcp --max-price 5000 --budget 50000 \
+  --data ~/.zchan/agent --node <Zakura testnet RPC> --solver <solver URL>
+```
+
+Or to any client that reads an `mcpServers` config:
+
+```json
+{
+  "mcpServers": {
+    "zchan": {
+      "command": "zchan-agent",
+      "args": ["mcp", "--max-price", "5000", "--budget", "50000",
+               "--data", "/home/me/.zchan/agent", "--node", "<Zakura testnet RPC>", "--solver", "<solver URL>"]
+    }
+  }
+}
+```
+
+| Tool | What it does |
+|---|---|
+| `zchan_fetch` | fetches a URL; on a `zchannel` 402 (x402 or MPP), pays within the caps and returns the paid response |
+| `zchan_status` | the channel's capacity, paid and remaining; the shielded balance; this session's spending |
+| `zchan_request_funds` | a ZIP 321 payment link for the person, as in step 1 |
+| `zchan_open` | opens a channel from the agent's shielded funds and waits for its block |
+| `zchan_close` | settles the channel, both sides paid to Ironwood |
+
+**Limits are set by the person who starts the server, not the model:**
+- **`--max-price`** (default 5,000 zat) caps the merchant's price for one request. The model can pass a lower `max_price`, never a higher one.
+- **`--budget`** (default 50,000 zat) caps what this server may spend, solver fees included, until it restarts.
+- **`--lock-blocks`** (default 2,000) sets the refund lock of channels it opens.
+
+Text on a web page cannot raise these, so a prompt injection can spend at most the budget. The server also runs the refund watcher while it is up. Most clients ask before each tool call until you allow it; allowing `zchan_fetch` while still approving `zchan_open` and `zchan_close` is a good default.
 
 ## Instructions for the agent
 
